@@ -1,5 +1,7 @@
 # RotaLucro 🚕
 
+> Repositório: https://github.com/amaduqueu-art/rotalucro
+
 Controle financeiro de corridas de táxi, feito para quem vive no volante: registre
 o valor recebido, o abastecimento (GNV ou Álcool) e a quilometragem — o **lucro
 é calculado automaticamente** e o histórico organiza tudo por dia.
