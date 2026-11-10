@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 213 60% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 213 60% 11%;
+
+    /* Azul-marinho institucional: #102a47. */
+    --primary: 212 63% 17%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 35% 94%;
+    --secondary-foreground: 212 63% 17%;
+
+    --muted: 210 30% 95%;
+    --muted-foreground: 215 16% 36%;
+
+    /* Laranja de ação (#b64a0c): contraste 5.3:1 com texto branco (WCAG AA). */
+    --accent: 22 88% 38%;
+    --accent-foreground: 0 0% 100%;
+    --accent-bright: 25 95% 53%;
+
+    --destructive: 0 72% 42%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 25% 87%;
+    --input: 215 20% 60%;
+    --ring: 22 88% 38%;
+
+    --radius: 0.9rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+
+  ::selection {
+    background-color: hsl(var(--accent-bright) / 0.25);
+  }
+
+  /* Respeita quem prefere menos animação. */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .skip-link {
+    @apply sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground focus:shadow-raised;
+  }
+
+  .field-error {
+    @apply text-sm font-medium text-destructive;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .safe-bottom {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+}

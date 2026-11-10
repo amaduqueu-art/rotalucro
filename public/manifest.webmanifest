@@ -1,0 +1,18 @@
+{
+  "name": "RotaLucro — controle financeiro de corridas de táxi",
+  "short_name": "RotaLucro",
+  "description": "Registre corridas, abastecimentos e veja o lucro de cada dia.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f2f6fb",
+  "theme_color": "#102a47",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
