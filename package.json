@@ -1,8 +1,8 @@
 {
-  "name": "rotalucro",
-  "version": "1.0.0",
+  "name": "rotarrendacomlucro",
+  "version": "2.0.0",
   "private": true,
-  "description": "RotaLucro — controle financeiro de corridas de táxi (Next.js + Supabase)",
+  "description": "RotaRendaComLucro — gestão financeira de corridas de táxi (Next.js + Supabase)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -16,6 +16,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^0.454.0",
     "next": "^14.2.5",
+    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "sonner": "^1.7.0",
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "autoprefixer": "^10.4.20",

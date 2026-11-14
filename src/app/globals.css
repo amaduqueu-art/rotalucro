@@ -35,6 +35,38 @@
     --radius: 0.9rem;
   }
 
+  /*
+   * Tema escuro pensado para o motorista que roda à noite: fundo azul quase
+   * preto, contraste alto e laranja mais luminoso nos botões de ação.
+   */
+  .dark {
+    --background: 215 45% 7%;
+    --foreground: 210 30% 96%;
+
+    --card: 214 38% 11%;
+    --card-foreground: 210 30% 96%;
+
+    --primary: 212 52% 30%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 214 28% 17%;
+    --secondary-foreground: 210 30% 96%;
+
+    --muted: 214 26% 15%;
+    --muted-foreground: 215 18% 70%;
+
+    --accent: 25 92% 55%;
+    --accent-foreground: 213 60% 10%;
+    --accent-bright: 25 95% 62%;
+
+    --destructive: 0 68% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 24% 22%;
+    --input: 214 18% 42%;
+    --ring: 25 92% 55%;
+  }
+
   * {
     @apply border-border;
   }
@@ -43,6 +75,11 @@
     scroll-behavior: smooth;
     -webkit-tap-highlight-color: transparent;
     text-size-adjust: 100%;
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
   }
 
   body {

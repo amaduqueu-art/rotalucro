@@ -14,7 +14,8 @@ export default function HistoricoPage() {
           Histórico de corridas
         </h1>
         <p className="text-sm text-muted-foreground">
-          Todas as corridas pagas, organizadas por dia, com o lucro em destaque.
+          Todas as corridas organizadas por dia, com forma de pagamento e lucro
+          líquido em destaque.
         </p>
       </header>
       <RideList />

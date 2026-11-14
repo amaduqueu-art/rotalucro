@@ -1,4 +1,5 @@
-import type { FuelType } from '@/lib/supabase/types';
+import { getFuelOption, getPaymentOption } from '@/lib/constants';
+import type { FuelType, PaymentMethod } from '@/lib/supabase/types';
 
 const brlFormatter = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -31,9 +32,16 @@ const quantityFormatter = new Intl.NumberFormat('pt-BR', {
   maximumFractionDigits: 2,
 });
 
+const unitPriceFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 3,
+});
+
 /** Formata um valor em Reais (BRL). */
 export function formatBRL(value: number): string {
-  return brlFormatter.format(value);
+  return brlFormatter.format(Number.isFinite(value) ? value : 0);
 }
 
 /** "12 de nov. de 2026" */
@@ -96,10 +104,43 @@ export function formatKm(value: number): string {
   return `${kmFormatter.format(value)} km`;
 }
 
-/** "45,2 L" (álcool) ou "12,5 m³" (GNV). */
-export function formatFuelQuantity(quantity: number, fuelType: FuelType): string {
+/** "45,2 L" (álcool/gasolina) ou "12,5 m³" (GNV). */
+export function formatFuelQuantity(
+  quantity: number,
+  fuelType: FuelType,
+): string {
   const unit = fuelType === 'gnv' ? 'm³' : 'L';
   return `${quantityFormatter.format(quantity)} ${unit}`;
+}
+
+/** "R$ 6,09/L" ou "R$ 4,49/m³". */
+export function formatUnitPrice(value: number, fuelType: FuelType): string {
+  const unit = fuelType === 'gnv' ? 'm³' : 'L';
+  return `${unitPriceFormatter.format(value)}/${unit}`;
+}
+
+/** "Gasolina" / "Álcool" / "GNV". */
+export function formatFuelType(fuelType: FuelType): string {
+  return getFuelOption(fuelType).label;
+}
+
+/** "Dinheiro" / "Cartão" / "PIX" / "Aplicativo". */
+export function formatPaymentMethod(method: PaymentMethod): string {
+  return getPaymentOption(method).label;
+}
+
+/** "12,5 km/L" ou "9,8 km/m³". */
+export function formatConsumption(
+  kmPerUnit: number,
+  fuelType: FuelType,
+): string {
+  const unit = fuelType === 'gnv' ? 'm³' : 'L';
+  return `${quantityFormatter.format(kmPerUnit)} km/${unit}`;
+}
+
+/** "R$ 2,45/km" */
+export function formatProfitPerKm(value: number): string {
+  return `${formatBRL(value)}/km`;
 }
 
 function toDate(date: string | Date): Date {

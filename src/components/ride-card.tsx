@@ -1,10 +1,15 @@
 'use client';
 
 import {
+  BadgeCheck,
   CalendarClock,
+  Clock3,
+  CreditCard,
   Fuel,
   Loader2,
   Pencil,
+  QrCode,
+  Receipt,
   Trash2,
   TrendingDown,
   TrendingUp,
@@ -13,13 +18,16 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
+import { PixQrDialog } from '@/components/pix-qr-dialog';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { getFuelOption } from '@/lib/constants';
 import {
   formatBRL,
   formatDateTime,
   formatFuelQuantity,
   formatKm,
+  formatPaymentMethod,
+  formatProfitPerKm,
+  formatUnitPrice,
 } from '@/lib/format';
 import { createClient } from '@/lib/supabase/client';
 import type { Ride } from '@/lib/supabase/types';
@@ -29,11 +37,14 @@ interface RideCardProps {
   ride: Ride;
   /** Atualiza a lista pai após excluir. */
   onDeleted?: (id: string) => void;
+  /** Recarrega a lista após confirmar um pagamento PIX. */
+  onChanged?: () => void;
 }
 
-export function RideCard({ ride, onDeleted }: RideCardProps) {
+export function RideCard({ ride, onDeleted, onChanged }: RideCardProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [pixOpen, setPixOpen] = useState(false);
 
   // Exclusão em dois toques: o primeiro arma o botão por 4 segundos.
   useEffect(() => {
@@ -42,10 +53,11 @@ export function RideCard({ ride, onDeleted }: RideCardProps) {
     return () => clearTimeout(timer);
   }, [confirmingDelete]);
 
-  const fuel = getFuelOption(ride.fuel_type);
   const distance =
-    ride.km_final !== null ? ride.km_final - ride.km_initial : null;
+    ride.distance_km ??
+    (ride.km_final !== null ? ride.km_final - ride.km_initial : null);
   const hasLoss = ride.profit < 0;
+  const isPaid = ride.payment_status === 'pago';
 
   async function handleDelete() {
     if (deleting) return;
@@ -80,32 +92,63 @@ export function RideCard({ ride, onDeleted }: RideCardProps) {
         <div className="min-w-0">
           <p className="flex items-center gap-1.5 text-sm font-bold text-foreground">
             <CalendarClock
-              className="size-4 shrink-0 text-primary"
+              className="size-4 shrink-0 text-primary dark:text-foreground"
               aria-hidden="true"
             />
             {formatDateTime(ride.ride_at)}
           </p>
-          <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <Fuel className="size-3.5 shrink-0" aria-hidden="true" />
-            {fuel.label} · {formatFuelQuantity(ride.fuel_quantity, ride.fuel_type)}
-          </p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <Fuel className="size-3.5 shrink-0" aria-hidden="true" />
+              {formatFuelQuantity(ride.fuel_quantity, ride.fuel_type)} ·{' '}
+              {formatUnitPrice(ride.fuel_unit_price, ride.fuel_type)}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="inline-flex items-center gap-1.5">
+              {ride.payment_method === 'cartao' ? (
+                <CreditCard className="size-3.5" aria-hidden="true" />
+              ) : ride.payment_method === 'pix' ? (
+                <QrCode className="size-3.5" aria-hidden="true" />
+              ) : (
+                <Receipt className="size-3.5" aria-hidden="true" />
+              )}
+              {formatPaymentMethod(ride.payment_method)}
+            </span>
+          </div>
         </div>
 
-        <p
-          className={cn(
-            'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-extrabold tabular-nums',
-            hasLoss
-              ? 'bg-red-100 text-red-900'
-              : 'bg-emerald-100 text-emerald-900',
-          )}
-        >
-          {hasLoss ? (
-            <TrendingDown className="size-4 shrink-0" aria-hidden="true" />
-          ) : (
-            <TrendingUp className="size-4 shrink-0" aria-hidden="true" />
-          )}
-          Lucro {formatBRL(ride.profit)}
-        </p>
+        <div className="flex flex-col items-end gap-1.5">
+          <p
+            className={cn(
+              'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-extrabold tabular-nums',
+              hasLoss
+                ? 'bg-red-100 text-red-900 dark:bg-red-950/50 dark:text-red-200'
+                : 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200',
+            )}
+          >
+            {hasLoss ? (
+              <TrendingDown className="size-4 shrink-0" aria-hidden="true" />
+            ) : (
+              <TrendingUp className="size-4 shrink-0" aria-hidden="true" />
+            )}
+            {formatBRL(ride.profit)}
+          </p>
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold',
+              isPaid
+                ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200'
+                : 'bg-amber-100 text-amber-950 dark:bg-amber-950/50 dark:text-amber-100',
+            )}
+          >
+            {isPaid ? (
+              <BadgeCheck className="size-3.5" aria-hidden="true" />
+            ) : (
+              <Clock3 className="size-3.5" aria-hidden="true" />
+            )}
+            {isPaid ? 'Pago' : 'Aguardando PIX'}
+          </span>
+        </div>
       </header>
 
       <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
@@ -127,30 +170,27 @@ export function RideCard({ ride, onDeleted }: RideCardProps) {
         </div>
         <div>
           <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            KM inicial
+            Outras despesas
           </dt>
           <dd className="mt-0.5 text-sm font-bold tabular-nums">
-            {formatKm(ride.km_initial)}
+            {formatBRL(ride.extra_expenses)}
           </dd>
         </div>
         <div>
           <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            KM final
+            KM rodados
           </dt>
           <dd className="mt-0.5 text-sm font-bold tabular-nums">
-            {ride.km_final === null ? (
+            {distance === null ? (
               <span className="font-normal text-muted-foreground">
-                próximo abastecimento
+                sem KM final
               </span>
             ) : (
               <>
-                {formatKm(ride.km_final)}
-                {distance !== null && distance > 0 ? (
+                {formatKm(distance)}
+                {distance > 0 ? (
                   <span className="ml-1 font-normal text-muted-foreground">
-                    ({distance.toLocaleString('pt-BR', {
-                      maximumFractionDigits: 1,
-                    })}{' '}
-                    km rodados)
+                    ({formatProfitPerKm(ride.profit / distance)})
                   </span>
                 ) : null}
               </>
@@ -165,12 +205,24 @@ export function RideCard({ ride, onDeleted }: RideCardProps) {
         </p>
       ) : null}
 
-      <footer className="mt-4 flex items-center justify-end gap-2 border-t pt-3">
+      <footer className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t pt-3">
+        {!isPaid ? (
+          <Button
+            variant="accent"
+            size="sm"
+            onClick={() => setPixOpen(true)}
+            className="mr-auto"
+          >
+            <QrCode aria-hidden="true" />
+            Cobrar PIX
+          </Button>
+        ) : null}
+
         <Link
           href={`/corrida/${ride.id}`}
           className={cn(
             buttonVariants({ variant: 'outline', size: 'sm' }),
-            'text-primary hover:text-accent',
+            'text-primary hover:text-accent dark:text-foreground',
           )}
         >
           <Pencil aria-hidden="true" />
@@ -182,7 +234,7 @@ export function RideCard({ ride, onDeleted }: RideCardProps) {
           onClick={handleDelete}
           disabled={deleting}
           className={cn(
-            'text-destructive hover:bg-red-50 hover:text-destructive',
+            'text-destructive hover:bg-red-50 hover:text-destructive dark:hover:bg-red-950/40',
             confirmingDelete &&
               'border-destructive bg-destructive text-destructive-foreground hover:bg-destructive hover:text-destructive-foreground',
           )}
@@ -195,6 +247,21 @@ export function RideCard({ ride, onDeleted }: RideCardProps) {
           {confirmingDelete ? 'Confirmar exclusão' : 'Excluir'}
         </Button>
       </footer>
+
+      <PixQrDialog
+        charge={{
+          id: ride.id,
+          fare: ride.fare,
+          pix_txid: ride.pix_txid,
+          payment_status: ride.payment_status,
+        }}
+        open={pixOpen}
+        onClose={() => setPixOpen(false)}
+        onConfirmed={() => {
+          setPixOpen(false);
+          onChanged?.();
+        }}
+      />
     </article>
   );
 }

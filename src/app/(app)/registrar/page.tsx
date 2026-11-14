@@ -15,8 +15,7 @@ export default function RegistrarPage() {
             Registrar corrida
           </h1>
           <p className="text-sm text-muted-foreground">
-            Valor recebido, abastecimento e quilometragem — o lucro aparece na
-            hora.
+            Valor por voz, combustível calculado e lucro na hora.
           </p>
         </header>
 

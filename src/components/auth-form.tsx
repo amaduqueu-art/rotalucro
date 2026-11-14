@@ -228,7 +228,7 @@ export function AuthForm() {
               className={cn(
                 'flex min-h-[44px] items-center justify-center gap-2 rounded-lg px-3 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 active
-                  ? 'bg-white text-primary shadow-sm'
+                  ? 'bg-card text-primary shadow-sm dark:text-foreground'
                   : 'text-muted-foreground hover:text-foreground',
               )}
             >
@@ -246,7 +246,7 @@ export function AuthForm() {
       {formError ? (
         <p
           role="alert"
-          className="mt-4 rounded-xl border border-destructive/30 bg-red-50 p-3 text-sm text-red-950"
+          className="mt-4 rounded-xl border border-destructive/30 bg-red-50 p-3 text-sm text-red-950 dark:bg-red-950/40 dark:text-red-100"
         >
           {formError}
         </p>
@@ -255,7 +255,7 @@ export function AuthForm() {
       {notice ? (
         <p
           role="status"
-          className="mt-4 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-950"
+          className="mt-4 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-950 dark:border-emerald-700/60 dark:bg-emerald-950/40 dark:text-emerald-100"
         >
           {notice}
         </p>

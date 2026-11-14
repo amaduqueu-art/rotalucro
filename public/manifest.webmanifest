@@ -1,7 +1,7 @@
 {
-  "name": "RotaLucro — controle financeiro de corridas de táxi",
-  "short_name": "RotaLucro",
-  "description": "Registre corridas, abastecimentos e veja o lucro de cada dia.",
+  "name": "RotaRendaComLucro — gestão financeira de corridas de táxi",
+  "short_name": "RotaRenda",
+  "description": "Registre corridas por voz, calcule combustível e lucro, cobre por PIX e acompanhe o dia.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f2f6fb",

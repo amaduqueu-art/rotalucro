@@ -14,7 +14,7 @@ export default function HomePage() {
           Seu painel do dia
         </h1>
         <p className="text-sm text-muted-foreground">
-          Corridas, abastecimento e lucro calculado automaticamente.
+          Faturamento, despesas, lucro líquido e quilômetros rodados.
         </p>
       </header>
       <DashboardContent />

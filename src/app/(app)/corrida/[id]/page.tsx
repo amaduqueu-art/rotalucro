@@ -63,8 +63,8 @@ export default async function EditarCorridaPage({ params }: PageProps) {
             Editar corrida
           </h1>
           <p className="text-sm text-muted-foreground">
-            Ajuste valores, complete o KM final do próximo abastecimento ou
-            corrija algo.
+            Ajuste valores, complete o KM final, mude a forma de pagamento ou
+            gere o QR Code PIX da corrida.
           </p>
         </header>
 

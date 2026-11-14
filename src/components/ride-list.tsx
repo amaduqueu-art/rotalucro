@@ -96,18 +96,18 @@ export function RideList() {
     return (
       <div
         role="alert"
-        className="flex flex-col items-start gap-3 rounded-2xl border border-destructive/30 bg-red-50 p-5 text-sm text-red-950"
+        className="flex flex-col items-start gap-3 rounded-2xl border border-destructive/30 bg-red-50 p-5 text-sm text-red-950 dark:bg-red-950/40 dark:text-red-100"
       >
         <p className="flex items-center gap-2 font-bold">
           <AlertTriangle className="size-4" aria-hidden="true" />
           Não foi possível carregar o histórico
         </p>
-        <p className="text-red-900">{error}</p>
+        <p className="text-red-900 dark:text-red-100/90">{error}</p>
         <Button
           variant="outline"
           size="sm"
           onClick={() => void reload()}
-          className="text-red-950 hover:bg-red-100"
+          className="text-red-950 hover:bg-red-100 dark:text-red-100 dark:hover:bg-red-950/60"
         >
           <RefreshCcw aria-hidden="true" />
           Tentar de novo
@@ -119,7 +119,7 @@ export function RideList() {
   if (rides && rides.length === 0) {
     return (
       <div className="rounded-2xl border bg-card p-8 text-center shadow-card">
-        <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-secondary text-primary">
+        <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-secondary text-primary dark:text-foreground">
           <Wallet className="size-6" aria-hidden="true" />
         </span>
         <h2 className="mt-4 text-lg font-extrabold">
@@ -127,7 +127,7 @@ export function RideList() {
         </h2>
         <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
           Registre a primeira corrida com o valor recebido e o abastecimento —
-          o lucro é calculado automaticamente.
+          o lucro líquido é calculado automaticamente.
         </p>
         <Link
           href="/registrar"
@@ -164,7 +164,7 @@ export function RideList() {
                   'min-h-[44px] shrink-0 rounded-full border px-4 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   active
                     ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-border bg-white text-muted-foreground hover:bg-secondary hover:text-foreground',
+                    : 'border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground',
                 )}
               >
                 {option.label}
@@ -179,7 +179,9 @@ export function RideList() {
             {filtered.length === 1 ? 'corrida' : 'corridas'} ·{' '}
             <span
               className={cn(
-                totalProfit >= 0 ? 'text-emerald-700' : 'text-destructive',
+                totalProfit >= 0
+                  ? 'text-emerald-700 dark:text-emerald-300'
+                  : 'text-destructive',
               )}
             >
               lucro {formatBRL(totalProfit)}
@@ -206,7 +208,9 @@ export function RideList() {
                 <h2
                   className={cn(
                     'text-sm font-extrabold uppercase tracking-wide',
-                    isToday ? 'text-accent' : 'text-primary',
+                    isToday
+                      ? 'text-accent'
+                      : 'text-primary dark:text-foreground',
                   )}
                 >
                   {dayLabel(key)}
@@ -218,7 +222,9 @@ export function RideList() {
                   <span
                     className={cn(
                       'font-bold',
-                      dayProfit >= 0 ? 'text-emerald-700' : 'text-destructive',
+                      dayProfit >= 0
+                        ? 'text-emerald-700 dark:text-emerald-300'
+                        : 'text-destructive',
                     )}
                   >
                     lucro {formatBRL(dayProfit)}
@@ -228,7 +234,12 @@ export function RideList() {
 
               <div className="space-y-3">
                 {dayRides.map((ride) => (
-                  <RideCard key={ride.id} ride={ride} onDeleted={removeRide} />
+                  <RideCard
+                    key={ride.id}
+                    ride={ride}
+                    onDeleted={removeRide}
+                    onChanged={() => void reload()}
+                  />
                 ))}
               </div>
             </section>

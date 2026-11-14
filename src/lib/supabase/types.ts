@@ -1,4 +1,8 @@
-export type FuelType = 'gnv' | 'alcool';
+export type FuelType = 'gnv' | 'alcool' | 'gasolina';
+
+export type PaymentMethod = 'dinheiro' | 'cartao' | 'pix' | 'aplicativo';
+
+export type PaymentStatus = 'pendente' | 'pago';
 
 /** Linha da tabela `rides`. */
 export type Ride = {
@@ -7,13 +11,25 @@ export type Ride = {
   ride_at: string;
   fare: number;
   fuel_type: FuelType;
-  /** Litros quando `fuel_type = 'alcool'`; m³ quando `fuel_type = 'gnv'`. */
+  /** Litros quando `fuel_type` for álcool/gasolina; m³ quando GNV. */
   fuel_quantity: number;
+  /** Preço por litro (ou m³) no abastecimento. */
+  fuel_unit_price: number;
+  /** Custo do combustível = quantidade × preço unitário (calculado). */
   fuel_cost: number;
+  /** Despesas extras do trajeto (pedágio, lavagem, lanche...). */
+  extra_expenses: number;
   km_initial: number;
   km_final: number | null;
-  /** Lucro = fare - fuel_cost (coluna gerada no PostgreSQL). */
+  payment_method: PaymentMethod;
+  payment_status: PaymentStatus;
+  paid_at: string | null;
+  /** Identificador enviado no QR Code PIX. */
+  pix_txid: string | null;
+  /** Lucro = fare - fuel_cost - extra_expenses (coluna gerada no PostgreSQL). */
   profit: number;
+  /** Distância percorrida = km_final - km_initial (gerada; null sem KM final). */
+  distance_km: number | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -21,7 +37,7 @@ export type Ride = {
 
 export type RideInsert = Omit<
   Ride,
-  'id' | 'profit' | 'created_at' | 'updated_at'
+  'id' | 'profit' | 'distance_km' | 'created_at' | 'updated_at'
 > & {
   /** Gerado pelo banco (gen_random_uuid()) quando omitido. */
   id?: string;
@@ -48,6 +64,8 @@ export type Database = {
     };
     Enums: {
       fuel_type: FuelType;
+      payment_method: PaymentMethod;
+      payment_status: PaymentStatus;
     };
     CompositeTypes: {
       [_ in never]: never;

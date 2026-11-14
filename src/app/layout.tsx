@@ -3,15 +3,18 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 import { Providers } from '@/components/providers';
+import { BRAND } from '@/lib/brand';
 
 export const metadata: Metadata = {
   title: {
-    default: 'RotaLucro — controle financeiro de corridas de táxi',
-    template: '%s · RotaLucro',
+    default: `${BRAND.name} — gestão financeira de corridas de táxi`,
+    template: `%s · ${BRAND.name}`,
   },
   description:
-    'Registre corridas, abastecimentos e veja o lucro de cada dia. Um app mobile-first para taxistas que querem dominar o volante e o caixa.',
-  applicationName: 'RotaLucro',
+    'Registre corridas, abastecimentos e veja o lucro líquido de cada dia. Um app mobile-first para taxistas que querem dominar o volante e o caixa.',
+  applicationName: BRAND.name,
+  authors: [{ name: BRAND.owner }],
+  creator: BRAND.owner,
   manifest: '/manifest.webmanifest',
   icons: {
     icon: '/icon.svg',
@@ -20,16 +23,16 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'pt_BR',
-    siteName: 'RotaLucro',
-    title: 'RotaLucro — controle financeiro de corridas de táxi',
+    siteName: BRAND.name,
+    title: `${BRAND.name} — gestão financeira de corridas de táxi`,
     description:
-      'Corridas, combustível e lucro calculado automaticamente, na palma da mão.',
+      'Corridas por voz, combustível calculado, PIX e lucro na palma da mão.',
   },
   twitter: {
     card: 'summary',
-    title: 'RotaLucro — controle financeiro de corridas de táxi',
+    title: `${BRAND.name} — gestão financeira de corridas de táxi`,
     description:
-      'Corridas, combustível e lucro calculado automaticamente, na palma da mão.',
+      'Corridas por voz, combustível calculado, PIX e lucro na palma da mão.',
   },
 };
 
@@ -40,11 +43,17 @@ export const viewport: Viewport = {
   themeColor: '#102a47',
 };
 
+/** Aplica o tema salvo antes da primeira pintura (evita flash). */
+const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem('rrcl-theme');var d=t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d){document.documentElement.classList.add('dark')}}catch(e){}})();`;
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="flex min-h-dvh flex-col">
         <a href="#conteudo" className="skip-link">
           Pular para o conteúdo
