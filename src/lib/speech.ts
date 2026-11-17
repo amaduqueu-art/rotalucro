@@ -133,6 +133,26 @@ const HUNDREDS: Record<string, number> = {
 const THOUSANDS = new Set(['mil']);
 const MILLIONS = new Set(['milhao', 'milhoes']);
 
+/** Palavras que podem acompanhar o número sem quebrar a sequência. */
+const AMOUNT_CONNECTORS = new Set([
+  'e',
+  'de',
+  'real',
+  'reais',
+  'conto',
+  'contos',
+  'centavo',
+  'centavos',
+]);
+
+const AMOUNT_CORE = new Set([
+  ...Object.keys(UNITS),
+  ...Object.keys(TENS),
+  ...Object.keys(HUNDREDS),
+  ...THOUSANDS,
+  ...MILLIONS,
+]);
+
 /** Converte palavras em número (0 a 999.999.999). */
 export function wordsToNumber(words: string[]): number | null {
   const tokens = words.filter((word) => word !== 'e' && word !== 'de');
@@ -187,4 +207,50 @@ function normalize(raw: string): string {
     .replace(/\s*,\s*/g, ',')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * Extrai um valor de uma frase que também contém comandos.
+ *
+ * Diferente de `parseSpokenAmount`, aceita frases como
+ * "registrar corrida de vinte e cinco reais" — as palavras desconhecidas
+ * quebram a sequência e apenas o trecho numérico é interpretado.
+ */
+export function extractSpokenAmount(raw: string): number | null {
+  const text = normalize(raw);
+  if (!text) return null;
+
+  const segments: string[] = [];
+  let current: string[] = [];
+  let coreWords = 0;
+
+  const flush = () => {
+    if (coreWords > 0 && current.length > 0) {
+      segments.push(current.join(' '));
+    }
+    current = [];
+    coreWords = 0;
+  };
+
+  for (const token of text.split(' ')) {
+    const isDigits = /^\d/.test(token);
+    const isCore = isDigits || AMOUNT_CORE.has(token);
+
+    if (isCore || AMOUNT_CONNECTORS.has(token)) {
+      current.push(token);
+      if (isCore) coreWords += 1;
+    } else {
+      flush();
+    }
+  }
+
+  flush();
+
+  // Do fim para o começo: em "duas corridas de 30", vale o valor mais próximo.
+  for (let index = segments.length - 1; index >= 0; index -= 1) {
+    const value = parseSpokenAmount(segments[index]);
+    if (value !== null && value > 0) return value;
+  }
+
+  return null;
 }

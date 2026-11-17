@@ -83,16 +83,22 @@ const PAYMENT_ICONS = {
 interface RideFormProps {
   /** Quando informado, o formulário edita a corrida existente. */
   ride?: Ride;
+  /** Valor inicial da corrida, usado quando o assistente abre o formulário. */
+  initialFare?: number;
 }
 
-export function RideForm({ ride }: RideFormProps) {
+export function RideForm({ ride, initialFare }: RideFormProps) {
   const router = useRouter();
   const isEdit = Boolean(ride);
 
   const [rideAt, setRideAt] = useState(() =>
     toDatetimeLocalValue(ride ? new Date(ride.ride_at) : new Date()),
   );
-  const [fare, setFare] = useState(ride ? String(ride.fare) : '');
+  const [fare, setFare] = useState(() => {
+    if (ride) return String(ride.fare);
+    if (initialFare && initialFare > 0) return initialFare.toFixed(2);
+    return '';
+  });
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(
     ride?.payment_method ?? 'dinheiro',
   );

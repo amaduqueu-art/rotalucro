@@ -4,6 +4,7 @@ import { BottomNav } from '@/components/bottom-nav';
 import { ConfigNotice } from '@/components/config-notice';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
+import { VoiceAssistant } from '@/components/voice-assistant';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/env';
 
@@ -52,6 +53,7 @@ export default async function AppLayout({
       </main>
       <SiteFooter />
       <BottomNav />
+      <VoiceAssistant />
     </>
   );
 }

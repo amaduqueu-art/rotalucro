@@ -22,6 +22,7 @@ as próprias corridas.
 | Combustível | **GNV, Álcool e Gasolina** |
 | Custo do combustível | Calculado automaticamente: **quantidade × preço do litro/m³** |
 | Entrada por voz | Botão de microfone ao lado do valor (Web Speech API, pt-BR) |
+| Assistente | Botão **Assistente** no canto da tela: consulta lucro, despesas, KM e abre o formulário com o valor falado |
 | Pagamento | Campo **Dinheiro, Cartão, PIX ou Aplicativo** |
 | PIX | Após salvar, o app pergunta se deve gerar o **QR Code PIX** (CPF `821.919.994-68`) |
 | Confirmação | Botão **“Já recebi o pagamento”** grava o pagamento e mostra a mensagem de confirmação |
@@ -64,13 +65,17 @@ src/
 │   ├── dashboard-content.tsx   # Cards de resumo
 │   ├── ride-list.tsx           # Histórico agrupado por dia
 │   ├── auth-form.tsx           # Login/cadastro
+│   ├── voice-assistant.tsx     # Assistente: voz, comandos e respostas
 │   ├── theme-toggle.tsx        # Alternância claro/escuro
 │   └── ui/                     # Button, Input, Select, Modal, etc.
 ├── hooks/
 │   ├── use-rides.ts            # Corridas do usuário logado
-│   └── use-speech-recognition.ts
+│   ├── use-speech-recognition.ts # Ditado do valor da corrida
+│   ├── use-voice-command.ts    # Ditado de comandos do assistente
+│   └── use-speech-synthesis.ts # Respostas faladas (TTS)
 ├── lib/
 │   ├── brand.ts                # ← NOME, DONO e CHAVE PIX (edite aqui)
+│   ├── assistant.ts            # Comandos, períodos, resumos e respostas
 │   ├── calc.ts                 # Lucro, despesas, rendimento, consumo
 │   ├── pix.ts                  # BR Code (copia e cola) + CRC16
 │   ├── speech.ts               # “oitenta e cinco reais” → 85.00
@@ -239,7 +244,61 @@ atualizar a linha no webhook.
 
 ---
 
-## 6. Deploy (GitHub + Vercel)
+## 6. Assistente de voz
+
+O botão flutuante **Assistente** (canto inferior direito, acima da navegação no
+celular) abre um painel de conversa. Ele funciona em todas as telas protegidas e
+usa a **Web Speech API** do navegador, sem chave de API e sem custo.
+
+### Comandos de consulta
+
+| Você fala | O assistente responde |
+| --- | --- |
+| “Quanto lucrei hoje?” | Lucro líquido de hoje e quantidade de corridas |
+| “Quanto faturei este mês?” | Faturamento do mês corrente |
+| “Quanto gastei de gasolina esta semana?” | Gasto de combustível nos últimos 7 dias |
+| “Quanto gastei este mês?” | Combustível + despesas extras do mês |
+| “Quantos km rodei?” | Quilometragem de hoje |
+| “Qual meu lucro por km?” | Lucro médio por quilômetro |
+| “Quantas corridas fiz no total?” | Total de corridas registradas |
+| “Resumo do mês” | Faturamento, despesas, lucro, KM e lucro/km |
+
+Períodos aceitos: **hoje** (padrão), **ontem**, **esta semana** (7 dias),
+**este mês** e **no total**.
+
+### Comandos de ação
+
+- **“Registrar corrida de 25 reais”** — abre `/registrar` com o valor já
+  preenchido; confira combustível e KM antes de salvar.
+- **“Abrir histórico”** — vai para `/historico`.
+- **“Voltar ao painel”** — vai para a tela inicial.
+- **“Ajuda”** — lista os comandos disponíveis.
+
+A resposta é falada pela voz nativa do sistema (pt-BR) e também aparece como
+texto. O botão **Voz ligada/desligada** silencia apenas o áudio; a conversa
+continua no painel. Se o navegador não suportar ditado, o campo de texto
+funciona como alternativa.
+
+### Limitações
+
+- A escuta só acontece com o painel aberto e o botão **Falar** acionado; não há
+  palavra de ativação em segundo plano.
+- Chrome, Edge e Safari têm melhor suporte. O Firefox não implementa a Web
+  Speech API.
+- A voz é sintetizada pelo sistema operacional; a qualidade varia por aparelho.
+- O assistente não cria corrida sozinho: ele preenche o valor e abre o
+  formulário para você confirmar os demais campos.
+
+Os testes dos comandos ficam em `scripts/test-assistant.ts` e podem ser
+executados com:
+
+```bash
+npx tsx scripts/test-assistant.ts
+```
+
+---
+
+## 7. Deploy (GitHub + Vercel)
 
 ### GitHub
 
@@ -267,7 +326,7 @@ git push origin main
 
 ---
 
-## 7. Acessibilidade e UX
+## 8. Acessibilidade e UX
 
 - Área de toque mínima de 44 px em botões, tabs e microfone
 - Inputs com fonte de 16 px (evita zoom automático no iOS) e

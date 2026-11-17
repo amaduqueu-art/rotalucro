@@ -6,11 +6,19 @@ import type { Ride } from '@/lib/supabase/types';
 import { createClient } from '@/lib/supabase/client';
 import { getErrorMessage } from '@/lib/utils';
 
+interface UseRidesOptions {
+  /**
+   * Quando false, não busca nada até ser reativado. O assistente usa isso
+   * para carregar as corridas somente quando o painel é aberto.
+   */
+  enabled?: boolean;
+}
+
 /**
  * Carrega as corridas do motorista logado (RLS filtra no banco).
  * `rides === null` enquanto carrega — use para exibir skeletons.
  */
-export function useRides() {
+export function useRides({ enabled = true }: UseRidesOptions = {}) {
   const [rides, setRides] = useState<Ride[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -40,8 +48,9 @@ export function useRides() {
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     void load();
-  }, [load]);
+  }, [enabled, load]);
 
   const removeRide = useCallback((id: string) => {
     setRides((previous) =>
