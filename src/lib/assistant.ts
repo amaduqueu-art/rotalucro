@@ -169,7 +169,7 @@ export function buildAssistantReply(
       return {
         reply: `Abrindo o formulário com o valor de ${formatBRL(
           intent.fare,
-        )}. Confira o combustível e a quilometragem antes de salvar.`,
+        )}. Confira a quilometragem e, se quiser, inicie a rota no mapa antes de salvar.`,
         action: { type: 'register', fare: intent.fare },
       };
 
@@ -310,16 +310,16 @@ function buildSummaryReply(
     case 'expenses':
       return `${lead}, você teve ${formatBRL(
         summary.expenses,
-      )} de despesas: ${formatBRL(summary.fuel)} de combustível e ${formatBRL(
+      )} de despesas: ${formatBRL(summary.fuel)} de combustível rateado e ${formatBRL(
         summary.extras,
       )} de extras.`;
 
     case 'fuel':
       return summary.fuel === 0
-        ? `${lead}, não há gasto de combustível registrado.`
+        ? `${lead}, não há gasto de combustível rateado registrado.`
         : `${lead}, você gastou ${formatBRL(
             summary.fuel,
-          )} com combustível em ${ridesLabel}.`;
+          )} de combustível rateado em ${ridesLabel}.`;
 
     case 'distance':
       return summary.distance === 0

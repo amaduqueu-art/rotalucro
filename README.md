@@ -3,10 +3,11 @@
 > Gestão financeira de corridas de táxi, por **Maduqueu Antônio**.
 > Repositório: https://github.com/amaduqueu-art/rotalucro
 
-Registre a corrida **falando o valor**, deixe o app calcular o combustível e o
-**lucro líquido**, cobre por **PIX com QR Code** e acompanhe faturamento,
-despesas e quilômetros rodados. Feito para quem vive no volante — inclusive
-rodando à noite, com **tema escuro**.
+Registre a corrida **falando o valor**, informe o **abastecimento só quando for
+abastecer**, acompanhe a **rota no mapa** e veja o **lucro líquido** já com o
+combustível **rateado entre as corridas**. Cobre por **PIX com QR Code** e
+acompanhe faturamento, despesas e quilômetros rodados. Feito para quem vive no
+volante — inclusive rodando à noite, com **tema escuro**.
 
 Arquitetura **mobile-first**, login por e-mail e senha (com confirmação de
 e-mail) e dados protegidos por **Row Level Security**: cada motorista vê apenas
@@ -14,24 +15,26 @@ as próprias corridas.
 
 ---
 
-## O que mudou nesta versão (2.0)
+## O que mudou nesta versão (2.1)
 
 | Área | Novidade |
 | --- | --- |
+| **Combustível** | **Abastecimento é um evento separado**: você informa quantidade/preço só quando abastece, pelo botão **“Abasteci agora”** |
+| **Rateio** | Cada abastecimento é dividido entre as corridas seguintes, **proporcionalmente aos KM** — uma corrida de R$ 10 não desconta um tanque de R$ 50 inteiro |
+| **Mapa** | Botão **“Iniciar rota”** abre um mini-mapa Leaflet/OpenStreetMap (gratuito, sem chave); a rota é salva com a corrida e pode ser revista no histórico |
 | Marca | Nome personalizado **RotaRendaComLucro**, assinatura de **Maduqueu Antônio** |
-| Combustível | **GNV, Álcool e Gasolina** |
-| Custo do combustível | Calculado automaticamente: **quantidade × preço do litro/m³** |
+| Combustíveis | **GNV, Álcool e Gasolina** |
 | Entrada por voz | Botão de microfone ao lado do valor (Web Speech API, pt-BR) |
 | Assistente | Botão **Assistente** no canto da tela: consulta lucro, despesas, KM e abre o formulário com o valor falado |
 | Pagamento | Campo **Dinheiro, Cartão, PIX ou Aplicativo** |
 | PIX | Após salvar, o app pergunta se deve gerar o **QR Code PIX** (CPF `821.919.994-68`) |
 | Confirmação | Botão **“Já recebi o pagamento”** grava o pagamento e mostra a mensagem de confirmação |
-| Despesas | Novo campo **Outras despesas** (pedágio, lavagem, lanche...) |
-| Lucro | **Lucro líquido = valor da corrida − combustível − outras despesas** |
+| Despesas | Campo **Outras despesas** (pedágio, lavagem, lanche...) |
+| Lucro | **Lucro líquido = valor da corrida − combustível rateado − outras despesas** |
 | Rendimento | **R$ / KM rodado** e **consumo km/L (ou km/m³)** |
-| Dashboard | Cards de **Faturamento, Despesas, Lucro líquido e KM rodado** (hoje e mês) |
+| Dashboard | Cards de **Faturamento, Despesas, Lucro líquido e KM rodado** + painel de abastecimentos |
 | Tema | **Dark mode** com alternância no cabeçalho |
-| Banco | Script SQL idempotente que **migra a tabela `rides` existente** sem perder dados |
+| Banco | Scripts SQL idempotentes que **migram sem perder dados**; o abastecimento antigo vira um registro em `fuel_refuels` |
 
 ---
 
@@ -41,6 +44,7 @@ as próprias corridas.
 - **Tailwind CSS** (design tokens navy `#102a47` + laranja `#b64a0c`, dark mode)
 - Componentes no padrão **shadcn/ui**, ícones **Lucide**, toasts **Sonner**
 - **Supabase** — PostgreSQL + Auth + RLS
+- **Leaflet + react-leaflet** com tiles do **OpenStreetMap** — mapa da rota (sem chave paga)
 - **qrcode** — gera o QR Code PIX no navegador (sem enviar dados a terceiros)
 
 ---
@@ -59,17 +63,21 @@ src/
 │   ├── layout.tsx              # Shell raiz, tema, metadados
 │   └── globals.css             # Design tokens (claro/escuro)
 ├── components/
-│   ├── ride-form.tsx           # Formulário completo (voz, cálculo, PIX)
+│   ├── ride-form.tsx           # Formulário (voz, rateio, rota, PIX)
+│   ├── refuel-dialog.tsx       # Cadastro separado de abastecimento
+│   ├── route-map.tsx           # Mapa Leaflet da rota
+│   ├── route-map-panel.tsx     # Wrapper dynamic (ssr: false)
 │   ├── pix-qr-dialog.tsx       # QR Code + copia e cola + confirmação
-│   ├── ride-card.tsx           # Card com status de pagamento
-│   ├── dashboard-content.tsx   # Cards de resumo
+│   ├── ride-card.tsx           # Card com lucro e rota salva
+│   ├── dashboard-content.tsx   # Cards de resumo + abastecimentos
 │   ├── ride-list.tsx           # Histórico agrupado por dia
 │   ├── auth-form.tsx           # Login/cadastro
 │   ├── voice-assistant.tsx     # Assistente: voz, comandos e respostas
 │   ├── theme-toggle.tsx        # Alternância claro/escuro
 │   └── ui/                     # Button, Input, Select, Modal, etc.
 ├── hooks/
-│   ├── use-rides.ts            # Corridas do usuário logado
+│   ├── use-rides.ts            # Corridas + abastecimentos e rateio
+│   ├── use-route-tracker.ts    # watchPosition + fallback manual
 │   ├── use-speech-recognition.ts # Ditado do valor da corrida
 │   ├── use-voice-command.ts    # Ditado de comandos do assistente
 │   └── use-speech-synthesis.ts # Respostas faladas (TTS)
@@ -77,6 +85,8 @@ src/
 │   ├── brand.ts                # ← NOME, DONO e CHAVE PIX (edite aqui)
 │   ├── assistant.ts            # Comandos, períodos, resumos e respostas
 │   ├── calc.ts                 # Lucro, despesas, rendimento, consumo
+│   ├── fuel-allocation.ts      # Rateio por janela/KM
+│   ├── route.ts                # Haversine, parsing e limite de pontos
 │   ├── pix.ts                  # BR Code (copia e cola) + CRC16
 │   ├── speech.ts               # “oitenta e cinco reais” → 85.00
 │   ├── constants.ts            # Combustíveis, pagamentos, limites
@@ -84,7 +94,11 @@ src/
 │   ├── utils.ts                # cn() + mensagens de erro
 │   └── supabase/               # clients browser/server + tipos
 └── types/web-speech.d.ts       # Tipagem da Web Speech API
-supabase/schema.sql             # Tabela + migração + RLS + índices
+supabase/
+├── schema.sql                  # Schema mestre (instalação limpa)
+└── migration-2.1-fuel-route.sql # Migração 2.1 para projetos já instalados
+scripts/test-assistant.ts       # Testes do assistente
+scripts/test-fuel-route.ts      # Testes de rateio e rota
 ```
 
 ---
@@ -93,20 +107,35 @@ supabase/schema.sql             # Tabela + migração + RLS + índices
 
 1. Crie um projeto em [supabase.com](https://supabase.com) (o plano gratuito
    basta) ou use o projeto atual do RotaLucro.
-2. Abra **SQL Editor → New query**, cole todo o
-   [`supabase/schema.sql`](supabase/schema.sql) e clique em **Run**.
+2. **Projeto já instalado (2.0):** abra **SQL Editor → New query**, cole todo
+   o [`supabase/migration-2.1-fuel-route.sql`](supabase/migration-2.1-fuel-route.sql)
+   e clique em **Run**. Isso cria `fuel_refuels`, transfere os abastecimentos
+   antigos das corridas e adiciona as colunas de rota.
+3. **Instalação limpa:** rode apenas o
+   [`supabase/schema.sql`](supabase/schema.sql), que já contém o equivalente
+   da migração 2.1.
 
-O script é **reexecutável** e faz a migração da tabela existente:
+Ambos os scripts são **reexecutáveis** e preservam as corridas existentes.
 
-- adiciona `gasolina` ao enum de combustível (recriando o enum com segurança);
-- adiciona `fuel_unit_price`, `extra_expenses`, `payment_method`,
-  `payment_status`, `paid_at` e `pix_txid`;
-- recalcula `profit` (`fare - fuel_cost - extra_expenses`) e cria `distance_km`;
-- recria índices, trigger de `updated_at`, constraints e políticas de RLS.
+> ⚠️ A migração 2.1 é **obrigatória** para abastecimentos e rota funcionarem.
+> Sem ela o app continua lendo as corridas, mas os botões de abastecimento e
+> o salvamento da rota falham.
 
-> ⚠️ Se você tinha uma versão anterior da tabela, **rode o script uma vez**.
-> As corridas antigas são preservadas; o preço unitário é preenchido com
-> `fuel_cost ÷ fuel_quantity`.
+### Como o combustível é rateado
+
+Um abastecimento de R$ 50,00 pago na bomba **não** é descontado inteiro de uma
+corrida de R$ 10,00. Ele é registrado uma vez em `fuel_refuels` e dividido entre
+as corridas registradas até o **próximo abastecimento**:
+
+- com KM informado, cada corrida paga na proporção dos seus KM rodados;
+- sem KM, as corridas dividem o valor em partes iguais;
+- a soma das parcelas é sempre exatamente o custo do abastecimento (a sobra do
+  arredondamento vai na última corrida da janela).
+
+Exemplo: R$ 50,00 abastecidos e 5 corridas de 10 km cada → R$ 10,00 de
+combustível em cada uma (lucro de R$ 0,00 por corrida, não −R$ 40,00).
+Se o motorista ainda não fez outras corridas, a prévia mostra a parcela maior
+e se reequilibra conforme novas corridas são registradas.
 
 ### Modelo da tabela `rides`
 
@@ -116,24 +145,42 @@ O script é **reexecutável** e faz a migração da tabela existente:
 | `user_id` | uuid → `auth.users` | Dono da corrida (RLS) |
 | `ride_at` | timestamptz | Data/hora da corrida |
 | `fare` | numeric(12,2) | Valor recebido |
-| `fuel_type` | enum | `gnv`, `alcool`, `gasolina` |
-| `fuel_quantity` | numeric(12,2) | m³ (GNV) ou litros |
-| `fuel_unit_price` | numeric(12,3) | Preço do litro/m³ |
-| `fuel_cost` | numeric(12,2) | Quantidade × preço |
+| `fuel_cost` | numeric(12,2) | **Parcela rateada** do abastecimento (R$) |
 | `extra_expenses` | numeric(12,2) | Pedágio, lavagem, extras |
 | `km_initial` | numeric(12,1) | KM inicial |
 | `km_final` | numeric(12,1) | KM final (opcional) |
 | `distance_km` | numeric(12,1) **gerada** | `km_final - km_initial` |
+| `route` | jsonb | Pontos `{lat, lng, at, accuracy}` da rota capturada |
+| `route_distance_km` | numeric(12,2) | Distância somada dos segmentos |
+| `route_started_at` / `route_ended_at` | timestamptz | Horários da captura |
 | `payment_method` | enum | `dinheiro`, `cartao`, `pix`, `aplicativo` |
 | `payment_status` | enum | `pendente`, `pago` |
 | `paid_at` | timestamptz | Confirmação do recebimento |
 | `pix_txid` | text | Identificador do BR Code |
-| `profit` | numeric(12,2) **gerada** | `fare - fuel_cost - extra_expenses` |
+| `profit` | numeric(12,2) **gerada** | `fare - fuel_cost rateado - extra_expenses` |
 | `notes` | text | Observações (até 500) |
 | `created_at` / `updated_at` | timestamptz | Auditoria |
 
+As colunas antigas `fuel_type`, `fuel_quantity` e `fuel_unit_price` continuam na
+tabela apenas para histórico/migração; o app não as usa mais em corridas.
+
+### Modelo da tabela `fuel_refuels`
+
+| Coluna | Tipo | Descrição |
+| --- | --- | --- |
+| `id` | uuid (PK) | Identificador |
+| `user_id` | uuid → `auth.users` | Dono do abastecimento (RLS) |
+| `fueled_at` | timestamptz | Data/hora do abastecimento |
+| `fuel_type` | enum | `gnv`, `alcool`, `gasolina` |
+| `quantity` | numeric(12,2) | Litros ou m³ |
+| `unit_price` | numeric(12,3) | Preço unitário na bomba |
+| `total_cost` | numeric(12,2) | `quantity × unit_price` |
+| `odometer` | numeric(12,1) | KM do painel (opcional) |
+| `station` / `notes` | text | Posto e observações (opcionais) |
+
 **RLS:** `select`/`insert`/`update`/`delete` apenas para `authenticated` e
-somente quando `auth.uid() = user_id`. Visitante anônimo não lê nada.
+somente quando `auth.uid() = user_id` — em **ambas** as tabelas. Visitante
+anônimo não lê nada.
 
 ---
 
@@ -176,6 +223,7 @@ Abra http://localhost:3000, crie sua conta e registre a primeira corrida.
 npm run build   # typecheck + build de produção
 npm start       # serve o build
 npm run lint    # ESLint
+npm test        # testes do assistente + rateio/rota
 ```
 
 > A **entrada por voz** usa a Web Speech API nativa do navegador. Funciona em
@@ -269,7 +317,8 @@ Períodos aceitos: **hoje** (padrão), **ontem**, **esta semana** (7 dias),
 ### Comandos de ação
 
 - **“Registrar corrida de 25 reais”** — abre `/registrar` com o valor já
-  preenchido; confira combustível e KM antes de salvar.
+  preenchido; confira o KM e inicie a rota no mapa, se quiser. O assistente
+  **nunca** salva a corrida sozinho.
 - **“Abrir histórico”** — vai para `/historico`.
 - **“Voltar ao painel”** — vai para a tela inicial.
 - **“Ajuda”** — lista os comandos disponíveis.
@@ -289,12 +338,28 @@ funciona como alternativa.
 - O assistente não cria corrida sozinho: ele preenche o valor e abre o
   formulário para você confirmar os demais campos.
 
-Os testes dos comandos ficam em `scripts/test-assistant.ts` e podem ser
-executados com:
+Os testes ficam em `scripts/test-assistant.ts` e `scripts/test-fuel-route.ts`
+(e cobrem o caso R$ 10 × R$ 50, conservação do custo, janelas de abastecimento
+e distância da rota). Execute com `npm test`.
 
-```bash
-npx tsx scripts/test-assistant.ts
-```
+---
+
+## 6.1. Rota e privacidade do GPS
+
+- Toque em **Iniciar rota** ao começar a corrida. O app usa
+  `navigator.geolocation.watchPosition` e desenha o trajeto no mini-mapa com
+  **Leaflet + OpenStreetMap** (sem chave de API e sem custo).
+- Toque em **Encerrar rota** ao finalizar. Os pontos, a distância calculada e
+  os horários são salvos junto com a corrida em `rides.route`. No histórico,
+  o botão **Ver rota no mapa** reapresenta o trajeto.
+- Se o navegador negar a localização, você pode **tocar no mapa** para marcar
+  os pontos manualmente.
+- **Nenhum ponto é enviado a serviço de terceiros**: os dados ficam no seu
+  projeto Supabase, protegidos por RLS. Os tiles do mapa são carregados do
+  OpenStreetMap pelo navegador; ao desativar a permissão de localização,
+  nenhuma posição é capturada.
+- Por privacidade, evite registrar a rota de casa até o posto ou de locais
+  sensíveis: a rota fica visível apenas na sua conta, mas é dados pessoais.
 
 ---
 
@@ -304,7 +369,7 @@ npx tsx scripts/test-assistant.ts
 
 ```bash
 git add .
-git commit -m "RotaRendaComLucro 2.0: voz, gasolina, PIX e tema escuro"
+git commit -m "RotaRendaComLucro 2.1: abastecimento rateado e rota no mapa"
 git push origin main
 ```
 

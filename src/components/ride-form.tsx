@@ -9,10 +9,13 @@ import {
   Gauge,
   Loader2,
   Lock,
+  MapPin,
   Mic,
   MicOff,
+  Navigation,
   QrCode,
   Receipt,
+  RotateCcw,
   Send,
   Smartphone,
   TrendingDown,
@@ -24,35 +27,34 @@ import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 
 import { PixQrDialog, type PixCharge } from '@/components/pix-qr-dialog';
+import { RefuelDialog } from '@/components/refuel-dialog';
+import { RouteMapPanel } from '@/components/route-map-panel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Modal } from '@/components/ui/modal';
-import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { useRides } from '@/hooks/use-rides';
+import { useRouteTracker } from '@/hooks/use-route-tracker';
 import { useSpeechRecognition } from '@/hooks/use-speech-recognition';
 import { BRAND, formatPixKey } from '@/lib/brand';
 import { computeRideMetrics, parseDecimal, round } from '@/lib/calc';
-import {
-  FUEL_OPTIONS,
-  LIMITS,
-  PAYMENT_OPTIONS,
-  getFuelOption,
-} from '@/lib/constants';
+import { LIMITS, PAYMENT_OPTIONS } from '@/lib/constants';
+import { allocateFuel } from '@/lib/fuel-allocation';
 import {
   formatBRL,
   formatConsumption,
-  formatFuelQuantity,
+  formatDateTime,
   formatKm,
   formatProfitPerKm,
-  formatUnitPrice,
   parseDatetimeLocal,
   toDatetimeLocalValue,
 } from '@/lib/format';
 import { createPixTxid } from '@/lib/pix';
+import { parseStoredRoute } from '@/lib/route';
 import { createClient } from '@/lib/supabase/client';
 import type {
-  FuelType,
+  FuelRefuelInsert,
   PaymentMethod,
   PaymentStatus,
   Ride,
@@ -63,9 +65,6 @@ type FieldName =
   | 'rideAt'
   | 'fare'
   | 'paymentMethod'
-  | 'fuelType'
-  | 'fuelQuantity'
-  | 'fuelUnitPrice'
   | 'kmInitial'
   | 'kmFinal'
   | 'extraExpenses'
@@ -102,15 +101,6 @@ export function RideForm({ ride, initialFare }: RideFormProps) {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(
     ride?.payment_method ?? 'dinheiro',
   );
-  const [fuelType, setFuelType] = useState<FuelType | ''>(
-    ride?.fuel_type ?? '',
-  );
-  const [fuelQuantity, setFuelQuantity] = useState(
-    ride ? String(ride.fuel_quantity) : '',
-  );
-  const [fuelUnitPrice, setFuelUnitPrice] = useState(
-    ride ? String(ride.fuel_unit_price) : '',
-  );
   const [kmInitial, setKmInitial] = useState(
     ride ? String(ride.km_initial) : '',
   );
@@ -132,30 +122,77 @@ export function RideForm({ ride, initialFare }: RideFormProps) {
   const [askQrOpen, setAskQrOpen] = useState(false);
   const [pixOpen, setPixOpen] = useState(false);
   const [generatingQr, setGeneratingQr] = useState(false);
+  const [refuelOpen, setRefuelOpen] = useState(false);
 
   const rideAtRef = useRef<HTMLInputElement>(null);
   const fareRef = useRef<HTMLInputElement>(null);
-  const fuelTypeRef = useRef<HTMLDivElement>(null);
-  const fuelQuantityRef = useRef<HTMLInputElement>(null);
-  const fuelUnitPriceRef = useRef<HTMLInputElement>(null);
   const kmInitialRef = useRef<HTMLInputElement>(null);
   const kmFinalRef = useRef<HTMLInputElement>(null);
   const extraExpensesRef = useRef<HTMLInputElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
 
-  const selectedFuel = fuelType ? getFuelOption(fuelType) : null;
+  const { rides, refuels, refuelsError, addRefuel, reload: reloadRides } =
+    useRides();
+  const initialRoute = useMemo(() => parseStoredRoute(ride?.route), [ride?.route]);
+  const tracker = useRouteTracker(
+    initialRoute,
+    ride?.route_started_at ?? null,
+    ride?.route_ended_at ?? null,
+  );
+
+  // Prévia do rateio: simula esta corrida dentro da lista real para mostrar
+  // quanto do último abastecimento cabe a ela.
+  const previewAllocation = useMemo(() => {
+    const date = parseDatetimeLocal(rideAt);
+    const pseudo: Ride = {
+      id: '__preview__',
+      user_id: '',
+      ride_at: Number.isNaN(date.getTime())
+        ? new Date().toISOString()
+        : date.toISOString(),
+      fare: parseDecimal(fare) ?? 0,
+      fuel_cost: 0,
+      extra_expenses: parseDecimal(extraExpenses) ?? 0,
+      km_initial: parseDecimal(kmInitial) ?? 0,
+      km_final: parseDecimal(kmFinal),
+      payment_method: 'dinheiro',
+      payment_status: 'pago',
+      paid_at: null,
+      pix_txid: null,
+      profit: 0,
+      distance_km: null,
+      route: null,
+      route_distance_km: null,
+      route_started_at: null,
+      route_ended_at: null,
+      notes: null,
+      created_at: '',
+      updated_at: '',
+    };
+
+    return allocateFuel(refuels, [...(rides ?? []), pseudo]).get('__preview__') ?? {
+      cost: 0,
+      quantity: 0,
+    };
+  }, [rideAt, fare, extraExpenses, kmInitial, kmFinal, rides, refuels]);
 
   const metrics = useMemo(
     () =>
       computeRideMetrics({
         fare: parseDecimal(fare),
-        fuelQuantity: parseDecimal(fuelQuantity),
-        fuelUnitPrice: parseDecimal(fuelUnitPrice),
+        fuelCost: previewAllocation.cost,
+        fuelQuantity: previewAllocation.quantity,
         extraExpenses: parseDecimal(extraExpenses),
         kmInitial: parseDecimal(kmInitial),
         kmFinal: parseDecimal(kmFinal),
       }),
-    [fare, fuelQuantity, fuelUnitPrice, extraExpenses, kmInitial, kmFinal],
+    [
+      fare,
+      previewAllocation,
+      extraExpenses,
+      kmInitial,
+      kmFinal,
+    ],
   );
 
   const speech = useSpeechRecognition({
@@ -177,28 +214,6 @@ export function RideForm({ ride, initialFare }: RideFormProps) {
     });
   }
 
-  function handleFuelTypeChange(next: FuelType | '') {
-    const previousDefault = fuelType
-      ? getFuelOption(fuelType).defaultUnitPrice
-      : null;
-    const currentPrice = parseDecimal(fuelUnitPrice);
-
-    setFuelType(next);
-    clearError('fuelType');
-
-    if (!next) return;
-
-    const option = getFuelOption(next);
-    const untouched =
-      fuelUnitPrice.trim() === '' ||
-      (previousDefault !== null && currentPrice === previousDefault);
-
-    if (untouched) {
-      setFuelUnitPrice(option.defaultUnitPrice.toFixed(3));
-      clearError('fuelUnitPrice');
-    }
-  }
-
   function validate(): boolean {
     const nextErrors: FieldErrors = {};
 
@@ -218,28 +233,6 @@ export function RideForm({ ride, initialFare }: RideFormProps) {
 
     if (!paymentMethod) {
       nextErrors.paymentMethod = 'Escolha como a corrida foi paga.';
-    }
-
-    if (!fuelType) {
-      nextErrors.fuelType = 'Selecione o tipo de combustível.';
-    }
-
-    const fuelQuantityValue = parseDecimal(fuelQuantity);
-    if (fuelQuantityValue === null) {
-      nextErrors.fuelQuantity = 'Informe a quantidade abastecida.';
-    } else if (fuelQuantityValue <= 0) {
-      nextErrors.fuelQuantity = 'A quantidade deve ser maior que zero.';
-    } else if (fuelQuantityValue > LIMITS.fuelQuantityMax) {
-      nextErrors.fuelQuantity = 'A quantidade parece alta demais. Confira.';
-    }
-
-    const fuelUnitPriceValue = parseDecimal(fuelUnitPrice);
-    if (fuelUnitPriceValue === null) {
-      nextErrors.fuelUnitPrice = 'Informe o preço do litro (ou m³).';
-    } else if (fuelUnitPriceValue <= 0) {
-      nextErrors.fuelUnitPrice = 'O preço deve ser maior que zero.';
-    } else if (fuelUnitPriceValue > LIMITS.fuelUnitPriceMax) {
-      nextErrors.fuelUnitPrice = 'O preço parece alto demais. Confira.';
     }
 
     const kmInitialValue = parseDecimal(kmInitial);
@@ -281,9 +274,6 @@ export function RideForm({ ride, initialFare }: RideFormProps) {
         [
           ['rideAt', rideAtRef],
           ['fare', fareRef],
-          ['fuelType', fuelTypeRef],
-          ['fuelQuantity', fuelQuantityRef],
-          ['fuelUnitPrice', fuelUnitPriceRef],
           ['kmInitial', kmInitialRef],
           ['kmFinal', kmFinalRef],
           ['extraExpenses', extraExpensesRef],
@@ -326,11 +316,13 @@ export function RideForm({ ride, initialFare }: RideFormProps) {
         );
       }
 
-      const quantity = round(parseDecimal(fuelQuantity) ?? 0, 2);
-      const unitPrice = round(parseDecimal(fuelUnitPrice) ?? 0, 3);
-      const fuelCost = round(quantity * unitPrice, 2);
+      // O abastecimento é rateado pelo app; o banco só recebe a parcela.
+      const fuelCost = round(previewAllocation.cost, 2);
       const extras = round(parseDecimal(extraExpenses) ?? 0, 2);
       const alreadyPaid = ride?.payment_status === 'pago';
+
+      if (tracker.tracking) tracker.stop();
+      const routeEndedAt = tracker.endedAt ?? new Date().toISOString();
 
       // Corrida nova em PIX fica aguardando o QR Code; nas demais formas o
       // recebimento é considerado imediato. Ao editar, pagamento já confirmado
@@ -345,9 +337,6 @@ export function RideForm({ ride, initialFare }: RideFormProps) {
         user_id: user.id,
         ride_at: parseDatetimeLocal(rideAt).toISOString(),
         fare: round(parseDecimal(fare) ?? 0, 2),
-        fuel_type: fuelType as FuelType,
-        fuel_quantity: quantity,
-        fuel_unit_price: unitPrice,
         fuel_cost: fuelCost,
         extra_expenses: extras,
         km_initial: round(parseDecimal(kmInitial) ?? 0, 1),
@@ -366,6 +355,17 @@ export function RideForm({ ride, initialFare }: RideFormProps) {
             ? (ride?.pix_txid ?? createPixTxid())
             : null,
         notes: notes.trim() || null,
+        // Envia a rota somente quando a migration 2.1 já criou as colunas;
+        // assim o formulário continua funcionando em instalações antigas.
+        ...(refuelsError
+          ? {}
+          : {
+              route: tracker.points.length > 0 ? tracker.points : null,
+              route_distance_km:
+                tracker.points.length > 1 ? round(tracker.distanceKm, 2) : null,
+              route_started_at: tracker.startedAt,
+              route_ended_at: tracker.points.length > 0 ? routeEndedAt : null,
+            }),
       };
 
       let record: Ride;
@@ -395,10 +395,12 @@ export function RideForm({ ride, initialFare }: RideFormProps) {
         toast.success('Corrida registrada!', {
           description:
             metrics.profit !== null
-              ? `Lucro líquido de ${formatBRL(metrics.profit)}.`
+              ? `Lucro estimado de ${formatBRL(metrics.profit)} (combustível rateado).`
               : 'Confira o lucro no histórico.',
         });
       }
+
+      void reloadRides();
 
       setSavedCharge({
         id: record.id,
@@ -471,6 +473,7 @@ export function RideForm({ ride, initialFare }: RideFormProps) {
     }
   }
 
+  const fuelTypeForDisplay = refuels[0]?.fuel_type ?? 'gasolina';
   const profitIsLoss = (metrics.profit ?? 0) < 0;
   const savedAlreadyPaid = savedCharge?.payment_status === 'pago';
 
@@ -672,167 +675,57 @@ export function RideForm({ ride, initialFare }: RideFormProps) {
             ) : null}
           </div>
 
-          <div ref={fuelTypeRef} className="space-y-2" tabIndex={-1}>
-            <Label htmlFor="fuel-type">
-              Tipo de combustível <span className="text-accent">*</span>
-            </Label>
-            <Select
-              id="fuel-type"
-              name="fuel-type"
-              value={fuelType}
-              onChange={(event) =>
-                handleFuelTypeChange(event.target.value as FuelType | '')
-              }
-              aria-required="true"
-              aria-invalid={Boolean(errors.fuelType)}
-              aria-describedby={
-                errors.fuelType ? 'fuel-type-error' : 'fuel-type-help'
-              }
-              className={cn(errors.fuelType && 'border-destructive')}
-            >
-              <option value="">Selecione o combustível</option>
-              {FUEL_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-            <p id="fuel-type-help" className="text-xs text-muted-foreground">
-              GNV, Álcool ou Gasolina — a unidade e o preço médio mudam junto.
-            </p>
-            {errors.fuelType ? (
-              <p id="fuel-type-error" className="field-error">
-                {errors.fuelType}
+          <div className="space-y-3 rounded-2xl border border-border bg-secondary/30 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="flex items-center gap-2 text-sm font-bold">
+                  <Fuel className="size-4 text-accent" aria-hidden="true" />
+                  Abastecimento
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Você não abastece a cada corrida. Toque em{' '}
+                  <strong>Abasteci agora</strong> somente quando for abastecer:
+                  o valor é dividido entre as corridas seguintes.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRefuelOpen(true)}
+                className="shrink-0"
+              >
+                <Fuel aria-hidden="true" />
+                Abasteci agora
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap items-end justify-between gap-2 rounded-xl border border-accent/30 bg-accent/5 p-3">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                  Combustível rateado nesta corrida
+                </p>
+                <p
+                  className="mt-0.5 text-2xl font-extrabold tabular-nums text-foreground"
+                  aria-live="polite"
+                >
+                  {formatBRL(metrics.fuelCost)}
+                </p>
+              </div>
+              <p className="max-w-[15rem] text-right text-xs font-medium text-muted-foreground">
+                {refuels.length > 0
+                  ? `Último abastecimento: ${formatDateTime(refuels[0].fueled_at)} · ${formatBRL(refuels[0].total_cost)}`
+                  : 'Ainda não há abastecimentos registrados.'}
+              </p>
+            </div>
+
+            {refuelsError ? (
+              <p className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-950 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-100">
+                Os abastecimentos e o mapa entram em operação após a
+                atualização do banco de dados. Por enquanto, registre a corrida
+                normalmente.
               </p>
             ) : null}
           </div>
-
-          {selectedFuel ? (
-            <div className="space-y-4 rounded-2xl border border-border bg-secondary/30 p-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="fuel-quantity">
-                    {selectedFuel.quantityLabel}{' '}
-                    <span className="text-accent">*</span>
-                  </Label>
-                  <Input
-                    ref={fuelQuantityRef}
-                    id="fuel-quantity"
-                    name="fuel-quantity"
-                    type="number"
-                    inputMode="decimal"
-                    min="0"
-                    max={LIMITS.fuelQuantityMax}
-                    step="0.01"
-                    placeholder={
-                      selectedFuel.value === 'gnv' ? 'Ex.: 12,5' : 'Ex.: 35,2'
-                    }
-                    value={fuelQuantity}
-                    onChange={(event) => {
-                      setFuelQuantity(event.target.value);
-                      clearError('fuelQuantity');
-                    }}
-                    autoComplete="off"
-                    aria-required="true"
-                    aria-invalid={Boolean(errors.fuelQuantity)}
-                    aria-describedby={
-                      errors.fuelQuantity
-                        ? 'fuel-quantity-error'
-                        : 'fuel-quantity-help'
-                    }
-                    className={cn(errors.fuelQuantity && 'border-destructive')}
-                  />
-                  <p
-                    id="fuel-quantity-help"
-                    className="text-xs text-muted-foreground"
-                  >
-                    {selectedFuel.help}
-                  </p>
-                  {errors.fuelQuantity ? (
-                    <p id="fuel-quantity-error" className="field-error">
-                      {errors.fuelQuantity}
-                    </p>
-                  ) : null}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="fuel-unit-price">
-                    {selectedFuel.priceLabel}{' '}
-                    <span className="text-accent">*</span>
-                  </Label>
-                  <Input
-                    ref={fuelUnitPriceRef}
-                    id="fuel-unit-price"
-                    name="fuel-unit-price"
-                    type="number"
-                    inputMode="decimal"
-                    min="0"
-                    max={LIMITS.fuelUnitPriceMax}
-                    step="0.001"
-                    placeholder="Ex.: 6,09"
-                    value={fuelUnitPrice}
-                    onChange={(event) => {
-                      setFuelUnitPrice(event.target.value);
-                      clearError('fuelUnitPrice');
-                    }}
-                    autoComplete="off"
-                    aria-required="true"
-                    aria-invalid={Boolean(errors.fuelUnitPrice)}
-                    aria-describedby={
-                      errors.fuelUnitPrice
-                        ? 'fuel-unit-price-error'
-                        : 'fuel-unit-price-help'
-                    }
-                    className={cn(
-                      errors.fuelUnitPrice && 'border-destructive',
-                    )}
-                  />
-                  <p
-                    id="fuel-unit-price-help"
-                    className="text-xs text-muted-foreground"
-                  >
-                    Preço médio sugerido:{' '}
-                    {formatUnitPrice(
-                      selectedFuel.defaultUnitPrice,
-                      selectedFuel.value,
-                    )}
-                    . Ajuste para o valor da bomba.
-                  </p>
-                  {errors.fuelUnitPrice ? (
-                    <p id="fuel-unit-price-error" className="field-error">
-                      {errors.fuelUnitPrice}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-end justify-between gap-2 rounded-xl border border-accent/30 bg-accent/5 p-3">
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                    Custo do combustível (calculado)
-                  </p>
-                  <p
-                    className="mt-0.5 text-2xl font-extrabold tabular-nums text-foreground"
-                    aria-live="polite"
-                  >
-                    {formatBRL(metrics.fuelCost)}
-                  </p>
-                </div>
-                <p className="text-xs font-medium text-muted-foreground">
-                  {parseDecimal(fuelQuantity) !== null &&
-                  parseDecimal(fuelUnitPrice) !== null
-                    ? `${formatFuelQuantity(
-                        parseDecimal(fuelQuantity) ?? 0,
-                        selectedFuel.value,
-                      )} × ${formatUnitPrice(
-                        parseDecimal(fuelUnitPrice) ?? 0,
-                        selectedFuel.value,
-                      )}`
-                    : 'Informe quantidade e preço para calcular'}
-                </p>
-              </div>
-            </div>
-          ) : null}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
@@ -911,6 +804,89 @@ export function RideForm({ ride, initialFare }: RideFormProps) {
                 </p>
               ) : null}
             </div>
+          </div>
+
+          <div className="space-y-3 rounded-2xl border bg-card p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="flex items-center gap-2 text-sm font-bold">
+                  <MapPin className="size-4 text-accent" aria-hidden="true" />
+                  Rota da corrida{' '}
+                  <span className="font-normal text-muted-foreground">
+                    (opcional)
+                  </span>
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Toque em <strong>Iniciar rota</strong> quando a corrida
+                  começar. O mini-mapa mostra o trajeto e ele fica salvo com a
+                  corrida. A localização é usada somente neste app.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant={tracker.tracking ? 'outline' : 'accent'}
+                onClick={tracker.tracking ? tracker.stop : tracker.start}
+                className="shrink-0"
+              >
+                {tracker.tracking ? (
+                  <MapPin aria-hidden="true" />
+                ) : (
+                  <Navigation aria-hidden="true" />
+                )}
+                {tracker.tracking ? 'Encerrar rota' : 'Iniciar rota'}
+              </Button>
+            </div>
+
+            <RouteMapPanel
+              points={tracker.points}
+              height={200}
+              onMapClick={tracker.manual && tracker.tracking ? tracker.addPoint : undefined}
+            />
+
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span aria-live="polite">
+                {tracker.points.length > 0
+                  ? `${tracker.points.length} pontos · ${formatKm(tracker.distanceKm)} capturados`
+                  : tracker.tracking
+                    ? 'Aguardando o primeiro sinal de GPS...'
+                    : 'Nenhuma rota capturada nesta corrida.'}
+                {tracker.startedAt ? ` · Início: ${formatDateTime(tracker.startedAt)}` : ''}
+              </span>
+
+              <div className="flex flex-wrap gap-1">
+                {tracker.distanceKm > 0 && !parseDecimal(kmFinal) ? (
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    onClick={() =>
+                      setKmFinal(
+                        String(
+                          round(
+                            (parseDecimal(kmInitial) ?? 0) + tracker.distanceKm,
+                            1,
+                          ),
+                        ),
+                      )
+                    }
+                  >
+                    Usar KM final da rota
+                  </Button>
+                ) : null}
+                {tracker.points.length > 0 ? (
+                  <Button type="button" variant="ghost" size="sm" onClick={tracker.clear}>
+                    <RotateCcw aria-hidden="true" />
+                    Limpar rota
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+
+            {tracker.error ? (
+              <p role="alert" className="text-xs font-medium text-destructive">
+                {tracker.error}
+              </p>
+            ) : null}
           </div>
 
           <div className="space-y-2">
@@ -994,7 +970,7 @@ export function RideForm({ ride, initialFare }: RideFormProps) {
 
           {/* Resumo calculado ao vivo. */}
           <output
-            htmlFor="fare fuel-quantity fuel-unit-price extra-expenses km-initial km-final"
+            htmlFor="fare extra-expenses km-initial km-final"
             role="status"
             aria-live="polite"
             className={cn(
@@ -1064,16 +1040,17 @@ export function RideForm({ ride, initialFare }: RideFormProps) {
                   Consumo
                 </dt>
                 <dd className="mt-0.5 text-sm font-extrabold tabular-nums">
-                  {metrics.consumption === null || !fuelType
+                  {metrics.consumption === null
                     ? '—'
-                    : formatConsumption(metrics.consumption, fuelType)}
+                    : formatConsumption(metrics.consumption, fuelTypeForDisplay)}
                 </dd>
               </div>
             </dl>
 
             <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-              Lucro = valor da corrida − combustível − outras despesas.
-              Rendimento = lucro ÷ KM rodado.
+              Lucro = valor da corrida − combustível rateado − outras despesas.
+              Rendimento = lucro ÷ KM rodado. O abastecimento é dividido entre
+              as corridas seguintes, não descontado inteiro de cada uma.
             </p>
           </output>
 
@@ -1161,6 +1138,16 @@ export function RideForm({ ride, initialFare }: RideFormProps) {
         </div>
       </Modal>
 
+      <RefuelDialog
+        open={refuelOpen}
+        onClose={() => setRefuelOpen(false)}
+        defaultDate={(() => {
+          const date = parseDatetimeLocal(rideAt);
+          return Number.isNaN(date.getTime()) ? new Date() : date;
+        })()}
+        onSave={addRefuel}
+      />
+
       <PixQrDialog
         charge={savedCharge}
         open={pixOpen}
@@ -1195,12 +1182,24 @@ export function RideFormTips() {
       <div className="rounded-2xl border border-sky-200 bg-sky-50 p-5 text-sky-950 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-100">
         <h2 className="flex items-center gap-2 text-sm font-bold">
           <Fuel className="size-4" aria-hidden="true" />
-          Combustível calculado
+          Abastecimento separado
         </h2>
         <p className="mt-2 text-sm leading-relaxed">
-          Escolha <strong>GNV</strong>, <strong>Álcool</strong> ou{' '}
-          <strong>Gasolina</strong>, informe a quantidade e o preço da bomba. O
-          custo do abastecimento é calculado na hora.
+          Toque em <strong>Abasteci agora</strong> só quando for abastecer. O
+          valor é dividido entre as corridas seguintes — você não precisa
+          informar combustível a cada corrida.
+        </p>
+      </div>
+
+      <div className="rounded-2xl border border-violet-200 bg-violet-50 p-5 text-violet-950 dark:border-violet-800/60 dark:bg-violet-950/40 dark:text-violet-100">
+        <h2 className="flex items-center gap-2 text-sm font-bold">
+          <MapPin className="size-4" aria-hidden="true" />
+          Rota no mapa
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed">
+          Inicie a rota ao começar a corrida: o mini-mapa desenha o trajeto e
+          ele fica salvo junto com a corrida. Sem GPS, toque no mapa para marcar
+          os pontos.
         </p>
       </div>
 

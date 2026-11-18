@@ -337,4 +337,65 @@ grant select, insert, update, delete on public.rides to authenticated;
 -- select tablename, rowsecurity from pg_tables where schemaname = 'public';
 -- select policyname, cmd, roles from pg_policies where schemaname = 'public';
 
+-- -----------------------------------------------------------------------------
+-- 10. Abastecimento separado + rota (equivalente à migration-2.1)
+-- -----------------------------------------------------------------------------
+-- O abastecimento é um evento independente; `rides.fuel_cost` passa a ser a
+-- parcela rateada pelo app entre as corridas seguintes ao abastecimento.
+
+create table if not exists public.fuel_refuels (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references auth.users (id) on delete cascade,
+  fueled_at    timestamptz not null default now(),
+  fuel_type    public.fuel_type not null,
+  quantity     numeric(12,2) not null check (quantity > 0),
+  unit_price   numeric(12,3) not null check (unit_price >= 0),
+  total_cost   numeric(12,2) not null check (total_cost >= 0),
+  odometer     numeric(12,1),
+  station      text,
+  notes        text,
+  created_at   timestamptz not null default now()
+);
+
+create index if not exists fuel_refuels_user_fueled_at_idx
+  on public.fuel_refuels (user_id, fueled_at desc);
+
+comment on column public.rides.fuel_cost is
+  'Parcela rateada do combustível (R$), recalculada pelo app a partir de fuel_refuels.';
+comment on column public.rides.profit is
+  'Lucro líquido = fare − fuel_cost rateado − extra_expenses (gerada pelo banco).';
+
+alter table public.rides
+  add column if not exists route jsonb;
+alter table public.rides
+  add column if not exists route_distance_km numeric(12,2);
+alter table public.rides
+  add column if not exists route_started_at timestamptz;
+alter table public.rides
+  add column if not exists route_ended_at timestamptz;
+
+alter table public.fuel_refuels enable row level security;
+
+drop policy if exists "fuel_refuels_select_own" on public.fuel_refuels;
+drop policy if exists "fuel_refuels_insert_own" on public.fuel_refuels;
+drop policy if exists "fuel_refuels_update_own" on public.fuel_refuels;
+drop policy if exists "fuel_refuels_delete_own" on public.fuel_refuels;
+
+create policy "fuel_refuels_select_own"
+  on public.fuel_refuels for select to authenticated
+  using (auth.uid() = user_id);
+create policy "fuel_refuels_insert_own"
+  on public.fuel_refuels for insert to authenticated
+  with check (auth.uid() = user_id);
+create policy "fuel_refuels_update_own"
+  on public.fuel_refuels for update to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+create policy "fuel_refuels_delete_own"
+  on public.fuel_refuels for delete to authenticated
+  using (auth.uid() = user_id);
+
+revoke all on public.fuel_refuels from anon;
+grant select, insert, update, delete on public.fuel_refuels to authenticated;
+
 notify pgrst, 'reload schema';

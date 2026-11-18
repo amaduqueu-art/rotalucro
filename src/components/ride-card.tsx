@@ -7,7 +7,9 @@ import {
   CreditCard,
   Fuel,
   Loader2,
+  MapPin,
   Pencil,
+  Route,
   QrCode,
   Receipt,
   Trash2,
@@ -19,16 +21,16 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import { PixQrDialog } from '@/components/pix-qr-dialog';
+import { RouteMapPanel } from '@/components/route-map-panel';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
   formatBRL,
   formatDateTime,
-  formatFuelQuantity,
   formatKm,
   formatPaymentMethod,
   formatProfitPerKm,
-  formatUnitPrice,
 } from '@/lib/format';
+import { parseStoredRoute } from '@/lib/route';
 import { createClient } from '@/lib/supabase/client';
 import type { Ride } from '@/lib/supabase/types';
 import { cn, getErrorMessage } from '@/lib/utils';
@@ -45,6 +47,9 @@ export function RideCard({ ride, onDeleted, onChanged }: RideCardProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [pixOpen, setPixOpen] = useState(false);
+  const [showRoute, setShowRoute] = useState(false);
+
+  const routePoints = parseStoredRoute(ride.route);
 
   // Exclusão em dois toques: o primeiro arma o botão por 4 segundos.
   useEffect(() => {
@@ -100,9 +105,17 @@ export function RideCard({ ride, onDeleted, onChanged }: RideCardProps) {
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <Fuel className="size-3.5 shrink-0" aria-hidden="true" />
-              {formatFuelQuantity(ride.fuel_quantity, ride.fuel_type)} ·{' '}
-              {formatUnitPrice(ride.fuel_unit_price, ride.fuel_type)}
+              {formatBRL(ride.fuel_cost)} rateado
             </span>
+            {routePoints.length > 0 ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="inline-flex items-center gap-1.5">
+                  <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
+                  rota salva
+                </span>
+              </>
+            ) : null}
             <span aria-hidden="true">·</span>
             <span className="inline-flex items-center gap-1.5">
               {ride.payment_method === 'cartao' ? (
@@ -203,6 +216,24 @@ export function RideCard({ ride, onDeleted, onChanged }: RideCardProps) {
         <p className="mt-3 rounded-lg bg-secondary/70 p-3 text-xs leading-relaxed text-muted-foreground">
           {ride.notes}
         </p>
+      ) : null}
+
+      {routePoints.length > 0 ? (
+        <div className="mt-3 space-y-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowRoute((previous) => !previous)}
+            aria-expanded={showRoute}
+          >
+            <Route aria-hidden="true" />
+            {showRoute ? 'Ocultar rota' : 'Ver rota no mapa'}
+            {ride.route_distance_km ? ` · ${formatKm(ride.route_distance_km)}` : ''}
+          </Button>
+          {showRoute ? (
+            <RouteMapPanel points={routePoints} height={200} />
+          ) : null}
+        </div>
       ) : null}
 
       <footer className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t pt-3">

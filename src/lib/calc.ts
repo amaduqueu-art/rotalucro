@@ -15,17 +15,19 @@ export function parseDecimal(raw: string): number | null {
 
 export interface RideMetricsInput {
   fare: number | null;
-  fuelQuantity: number | null;
-  fuelUnitPrice: number | null;
+  /** Parcela do abastecimento rateada para esta corrida. */
+  fuelCost: number;
+  /** Quantidade de combustível rateada (para calcular consumo). */
+  fuelQuantity?: number;
   extraExpenses: number | null;
   kmInitial: number | null;
   kmFinal: number | null;
 }
 
 export interface RideMetrics {
-  /** Quantidade abastecida × preço unitário. */
+  /** Parcela rateada do combustível. */
   fuelCost: number;
-  /** Combustível + outras despesas. */
+  /** Combustível rateado + outras despesas. */
   totalExpenses: number;
   /** Valor da corrida − despesas totais. */
   profit: number | null;
@@ -38,16 +40,14 @@ export interface RideMetrics {
 }
 
 /**
- * Regra de negócio do app:
- *   custo do combustível = quantidade × preço unitário
- *   despesas totais      = combustível + extras
- *   lucro líquido        = valor da corrida − despesas totais
- *   rendimento           = lucro líquido ÷ KM rodado
+ * Regra de negócio do app (a partir da versão 2.1):
+ *   abastecimento é um evento a parte, rateado entre as corridas seguintes
+ *   despesas totais = combustível rateado + extras
+ *   lucro líquido  = valor da corrida − despesas totais
+ *   rendimento     = lucro líquido ÷ KM rodado
  */
 export function computeRideMetrics(input: RideMetricsInput): RideMetrics {
-  const quantity = input.fuelQuantity ?? 0;
-  const unitPrice = input.fuelUnitPrice ?? 0;
-  const fuelCost = round(Math.max(quantity, 0) * Math.max(unitPrice, 0), 2);
+  const fuelCost = round(Math.max(input.fuelCost ?? 0, 0), 2);
   const extras = Math.max(input.extraExpenses ?? 0, 0);
   const totalExpenses = round(fuelCost + extras, 2);
 
@@ -66,6 +66,7 @@ export function computeRideMetrics(input: RideMetricsInput): RideMetrics {
       ? round(profit / distance, 2)
       : null;
 
+  const quantity = Math.max(input.fuelQuantity ?? 0, 0);
   const consumption =
     distance !== null && distance > 0 && quantity > 0
       ? round(distance / quantity, 2)

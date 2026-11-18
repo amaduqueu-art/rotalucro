@@ -7,14 +7,16 @@ import {
   Fuel,
   Gauge,
   PlusCircle,
+  RotateCcw,
   RefreshCcw,
   TrendingDown,
   TrendingUp,
   Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
+import { RefuelDialog } from '@/components/refuel-dialog';
 import { RideCard } from '@/components/ride-card';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -22,6 +24,7 @@ import { useRides } from '@/hooks/use-rides';
 import {
   dayKey,
   formatBRL,
+  formatDateTime,
   formatProfitPerKm,
   formatKm,
   todayKey,
@@ -30,7 +33,17 @@ import type { Ride } from '@/lib/supabase/types';
 import { cn } from '@/lib/utils';
 
 export function DashboardContent() {
-  const { rides, loading, error, reload, removeRide } = useRides();
+  const {
+    rides,
+    refuels,
+    refuelsError,
+    addRefuel,
+    loading,
+    error,
+    reload,
+    removeRide,
+  } = useRides();
+  const [refuelOpen, setRefuelOpen] = useState(false);
 
   const stats = useMemo(() => {
     if (!rides) return null;
@@ -179,6 +192,56 @@ export function DashboardContent() {
         <StatsGrid data={stats.month} />
       </section>
 
+      <section aria-labelledby="refuels" className="space-y-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2
+            id="refuels"
+            className="text-sm font-extrabold uppercase tracking-wide text-primary dark:text-foreground"
+          >
+            Abastecimentos
+          </h2>
+          {!refuelsError ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRefuelOpen(true)}
+            >
+              <Fuel aria-hidden="true" />
+              Abasteci agora
+            </Button>
+          ) : null}
+        </div>
+        <div className="rounded-2xl border bg-card p-4 shadow-card sm:p-5">
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {refuelsError
+              ? 'Os abastecimentos entram em operação após a atualização do banco de dados.'
+              : 'O valor de cada abastecimento é dividido entre as corridas seguintes — nunca descontado inteiro de uma única corrida.'}
+          </p>
+          {refuels.length > 0 ? (
+            <ul className="mt-3 divide-y">
+              {refuels.slice(0, 4).map((refuel) => (
+                <li
+                  key={refuel.id}
+                  className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
+                >
+                  <span className="inline-flex items-center gap-2 text-muted-foreground">
+                    <RotateCcw className="size-3.5 shrink-0" aria-hidden="true" />
+                    {formatDateTime(refuel.fueled_at)}
+                  </span>
+                  <span className="font-bold tabular-nums">
+                    {formatBRL(refuel.total_cost)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 text-sm font-medium">
+              Nenhum abastecimento registrado ainda.
+            </p>
+          )}
+        </div>
+      </section>
+
       <section aria-labelledby="recent-rides" className="space-y-3">
         <div className="flex items-baseline justify-between gap-2">
           <h2
@@ -205,6 +268,12 @@ export function DashboardContent() {
           ))}
         </div>
       </section>
+
+      <RefuelDialog
+        open={refuelOpen}
+        onClose={() => setRefuelOpen(false)}
+        onSave={addRefuel}
+      />
     </div>
   );
 }
