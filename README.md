@@ -22,10 +22,11 @@ as próprias corridas.
 | **Combustível** | **Abastecimento é um evento separado**: você informa quantidade/preço só quando abastece, pelo botão **“Abasteci agora”** |
 | **Rateio** | Cada abastecimento é dividido entre as corridas seguintes, **proporcionalmente aos KM** — uma corrida de R$ 10 não desconta um tanque de R$ 50 inteiro |
 | **Mapa** | Botão **“Iniciar rota”** abre um mini-mapa Leaflet/OpenStreetMap (gratuito, sem chave); a rota é salva com a corrida e pode ser revista no histórico |
+| **Abastecimentos** | Tela **“Abastecer”** (menu inferior) com histórico, totais e exclusão em dois toques — o valor pago na bomba fica separado da parcela rateada |
 | Marca | Nome personalizado **RotaRendaComLucro**, assinatura de **Maduqueu Antônio** |
 | Combustíveis | **GNV, Álcool e Gasolina** |
 | Entrada por voz | Botão de microfone ao lado do valor (Web Speech API, pt-BR) |
-| Assistente | Botão **Assistente** no canto da tela: consulta lucro, despesas, KM e abre o formulário com o valor falado |
+| Assistente | Botão **Assistente** no canto da tela: consulta lucro, despesas, KM e **gasto real em abastecimento**, e abre o formulário com o valor falado |
 | Pagamento | Campo **Dinheiro, Cartão, PIX ou Aplicativo** |
 | PIX | Após salvar, o app pergunta se deve gerar o **QR Code PIX** (CPF `821.919.994-68`) |
 | Confirmação | Botão **“Já recebi o pagamento”** grava o pagamento e mostra a mensagem de confirmação |
@@ -59,12 +60,14 @@ src/
 │   │   ├── page.tsx            # Painel do dia e do mês
 │   │   ├── registrar/          # Formulário de nova corrida
 │   │   ├── historico/          # Histórico por dia
+│   │   ├── abastecimentos/     # Histórico de abastecimentos
 │   │   └── corrida/[id]/       # Edição da corrida + QR PIX
 │   ├── layout.tsx              # Shell raiz, tema, metadados
 │   └── globals.css             # Design tokens (claro/escuro)
 ├── components/
 │   ├── ride-form.tsx           # Formulário (voz, rateio, rota, PIX)
 │   ├── refuel-dialog.tsx       # Cadastro separado de abastecimento
+│   ├── refuel-list.tsx         # Histórico, totais e exclusão de abastecimentos
 │   ├── route-map.tsx           # Mapa Leaflet da rota
 │   ├── route-map-panel.tsx     # Wrapper dynamic (ssr: false)
 │   ├── pix-qr-dialog.tsx       # QR Code + copia e cola + confirmação
@@ -304,6 +307,7 @@ usa a **Web Speech API** do navegador, sem chave de API e sem custo.
 | --- | --- |
 | “Quanto lucrei hoje?” | Lucro líquido de hoje e quantidade de corridas |
 | “Quanto faturei este mês?” | Faturamento do mês corrente |
+| “Quanto gastei em abastecimento?” | **Valor realmente pago na bomba** no período (soma dos abastecimentos) |
 | “Quanto gastei de gasolina esta semana?” | Gasto de combustível nos últimos 7 dias |
 | “Quanto gastei este mês?” | Combustível + despesas extras do mês |
 | “Quantos km rodei?” | Quilometragem de hoje |
@@ -313,6 +317,12 @@ usa a **Web Speech API** do navegador, sem chave de API e sem custo.
 
 Períodos aceitos: **hoje** (padrão), **ontem**, **esta semana** (7 dias),
 **este mês** e **no total**.
+
+> 💡 **Dois números diferentes, ambos corretos:** “combustível” é a parcela
+> rateada entre as corridas (usada no lucro); “abastecimento” é o dinheiro
+> realmente gasto na bomba. Perguntar **“Quanto gastei em abastecimento?”**
+> responde com o valor pago nos postos, mesmo que ainda não haja corridas no
+> período para receber a parcela.
 
 ### Comandos de ação
 
@@ -339,8 +349,9 @@ funciona como alternativa.
   formulário para você confirmar os demais campos.
 
 Os testes ficam em `scripts/test-assistant.ts` e `scripts/test-fuel-route.ts`
-(e cobrem o caso R$ 10 × R$ 50, conservação do custo, janelas de abastecimento
-e distância da rota). Execute com `npm test`.
+(e cobrem o caso R$ 10 × R$ 50, conservação do custo, janelas de abastecimento,
+distância da rota e respostas do assistente com abastecimentos reais). Execute
+com `npm test`.
 
 ---
 

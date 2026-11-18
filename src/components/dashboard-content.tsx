@@ -200,16 +200,24 @@ export function DashboardContent() {
           >
             Abastecimentos
           </h2>
-          {!refuelsError ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setRefuelOpen(true)}
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/abastecimentos"
+              className="inline-flex min-h-[44px] items-center text-sm font-bold text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <Fuel aria-hidden="true" />
-              Abasteci agora
-            </Button>
-          ) : null}
+              Ver todos
+            </Link>
+            {!refuelsError ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setRefuelOpen(true)}
+              >
+                <Fuel aria-hidden="true" />
+                Abasteci agora
+              </Button>
+            ) : null}
+          </div>
         </div>
         <div className="rounded-2xl border bg-card p-4 shadow-card sm:p-5">
           <p className="text-xs leading-relaxed text-muted-foreground">

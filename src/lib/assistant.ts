@@ -1,6 +1,6 @@
 import { formatBRL } from '@/lib/format';
 import { LIMITS } from '@/lib/constants';
-import type { Ride } from '@/lib/supabase/types';
+import type { FuelRefuel, Ride } from '@/lib/supabase/types';
 import { extractSpokenAmount } from '@/lib/speech';
 
 /** Períodos aceitos nos comandos de consulta. */
@@ -46,8 +46,15 @@ export interface AssistantSummary {
   profitPerKm: number | null;
 }
 
+/** Total realmente pago na bomba no período (eventos de abastecimento). */
+export interface RefuelSummary {
+  count: number;
+  total: number;
+  quantity: number;
+}
+
 const HELP_TEXT =
-  'Você pode perguntar "quanto lucrei hoje", "quanto gastei este mês", "quantos km rodei" ou "qual meu lucro por km". Também pode dizer "registrar corrida de 25 reais" ou "abrir histórico".';
+  'Você pode perguntar "quanto lucrei hoje", "quanto gastei em abastecimento", "quantos km rodei" ou "qual meu lucro por km". Também pode dizer "registrar corrida de 25 reais" ou "abrir histórico".';
 
 /**
  * Interpreta uma frase falada/digitada em português e devolve a intenção.
@@ -122,6 +129,7 @@ export function parseAssistantIntent(raw: string): AssistantIntent {
 export function buildAssistantReply(
   intent: AssistantIntent,
   rides: Ride[] | null,
+  refuels: FuelRefuel[] | null = null,
 ): AssistantReply {
   switch (intent.kind) {
     case 'help':
@@ -186,6 +194,7 @@ export function buildAssistantReply(
           summarizeRides(rides, intent.period),
           intent.period,
           intent.metric,
+          refuels ? summarizeRefuels(refuels, intent.period) : null,
         ),
       };
     }
@@ -202,8 +211,9 @@ export function buildAssistantReply(
 export function runAssistantCommand(
   raw: string,
   rides: Ride[] | null,
+  refuels: FuelRefuel[] | null = null,
 ): AssistantReply {
-  return buildAssistantReply(parseAssistantIntent(raw), rides);
+  return buildAssistantReply(parseAssistantIntent(raw), rides, refuels);
 }
 
 /** Resume as corridas do período informado. */
@@ -254,6 +264,31 @@ export function summarizeRides(
   };
 }
 
+/** Resume os abastecimentos (valor pago na bomba) do período informado. */
+export function summarizeRefuels(
+  refuels: FuelRefuel[],
+  period: AssistantPeriod,
+): RefuelSummary {
+  const { start, end } = periodRange(period);
+
+  const selected = refuels.filter((refuel) => {
+    const time = new Date(refuel.fueled_at).getTime();
+    return Number.isFinite(time) && time >= start && time < end;
+  });
+
+  return {
+    count: selected.length,
+    total: round(
+      selected.reduce((sum, refuel) => sum + numberOrZero(refuel.total_cost), 0),
+      2,
+    ),
+    quantity: round(
+      selected.reduce((sum, refuel) => sum + numberOrZero(refuel.quantity), 0),
+      2,
+    ),
+  };
+}
+
 /**
  * Converte o texto exibido em algo mais natural para a voz do sistema:
  * "R$ 120,50" vira "120 reais e 50 centavos"; "km" vira "quilômetros".
@@ -283,10 +318,25 @@ function buildSummaryReply(
   summary: AssistantSummary,
   period: AssistantPeriod,
   metric: AssistantMetric,
+  refuels: RefuelSummary | null = null,
 ): string {
   const lead = periodLead(period);
   const label = periodLabel(period);
   const ridesLabel = plural(summary.count, 'corrida', 'corridas');
+
+  // Abastecimento é um evento independente: pode existir mesmo sem corrida.
+  if (metric === 'fuel' && refuels && refuels.count > 0) {
+    const pumpText = `Você abasteceu ${formatBRL(
+      refuels.total,
+    )} em ${plural(refuels.count, 'abastecimento', 'abastecimentos')}${label}.`;
+    const allocatedText =
+      summary.fuel > 0
+        ? ` Desse total, ${formatBRL(
+            summary.fuel,
+          )} foram rateados nas corridas do período.`
+        : ' Ainda não há corridas nesse período para receber a parcela.';
+    return `${pumpText}${allocatedText}`;
+  }
 
   if (summary.count === 0) {
     return `Não encontrei corridas ${label}. Você pode registrar uma agora pelo formulário ou dizendo "registrar corrida de 25 reais".`;

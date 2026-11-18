@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import {
   buildAssistantReply,
   parseAssistantIntent,
+  summarizeRefuels,
   summarizeRides,
   toSpeechText,
   type AssistantIntent,
 } from '../src/lib/assistant';
-import type { Ride } from '../src/lib/supabase/types';
+import type { FuelRefuel, Ride } from '../src/lib/supabase/types';
 
 const cases: Array<[string, AssistantIntent]> = [
   [
@@ -188,6 +189,44 @@ assert.equal(
   toSpeechText('O total ficou em R$ 0,50.'),
   'O total ficou em 50 centavos.',
 );
+
+// Abastecimentos são eventos separados das corridas.
+const refuels: FuelRefuel[] = [
+  {
+    id: 'f1',
+    user_id: 'user-1',
+    fueled_at: today.toISOString(),
+    fuel_type: 'gasolina',
+    quantity: 8,
+    unit_price: 6.25,
+    total_cost: 50,
+    odometer: null,
+    station: null,
+    notes: null,
+    created_at: today.toISOString(),
+  },
+];
+
+const todayRefuels = summarizeRefuels(refuels, 'today');
+assert.equal(todayRefuels.count, 1);
+assert.equal(todayRefuels.total, 50);
+assert.equal(summarizeRefuels(refuels, 'yesterday').count, 0);
+
+const fuelReply = buildAssistantReply(
+  { kind: 'summary', period: 'today', metric: 'fuel' },
+  rides,
+  refuels,
+);
+assert.match(fuelReply.reply, /abasteceu R\$\s*50,00/);
+assert.match(fuelReply.reply, /rateados/);
+
+// Mesmo sem corrida no período, o gasto na bomba continua aparecendo.
+const noRidesFuelReply = buildAssistantReply(
+  { kind: 'summary', period: 'today', metric: 'fuel' },
+  [],
+  refuels,
+);
+assert.match(noRidesFuelReply.reply, /abasteceu R\$\s*50,00/);
 
 console.log('\nRespostas de exemplo:');
 console.log('-', overview.reply);

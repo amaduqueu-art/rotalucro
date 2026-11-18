@@ -44,7 +44,7 @@ const GREETING = `Olá! Sou o assistente do ${BRAND.shortName}. Pergunte sobre l
 
 const SUGGESTIONS = [
   'Quanto lucrei hoje?',
-  'Quanto gastei este mês?',
+  'Quanto gastei em abastecimento?',
   'Quantos km rodei?',
   'Registrar corrida de 25 reais',
 ];
@@ -66,7 +66,9 @@ export function VoiceAssistant() {
   const listRef = useRef<HTMLDivElement>(null);
   const navigationTimer = useRef<number | null>(null);
 
-  const { rides, error: ridesError, loading } = useRides({ enabled: open });
+  const { rides, refuels, error: ridesError, loading } = useRides({
+    enabled: open,
+  });
   const tts = useSpeechSynthesis();
   const { speak, cancel: cancelSpeech, muted, toggleMuted } = tts;
 
@@ -91,7 +93,7 @@ export function VoiceAssistant() {
                 ? `Não consegui carregar suas corridas: ${ridesError}`
                 : 'Só um instante: ainda estou carregando suas corridas. Tente novamente em alguns segundos.',
             }
-          : buildAssistantReply(intent, rides);
+          : buildAssistantReply(intent, rides, refuels);
 
       pushMessage('assistant', result.reply);
       speak(toSpeechText(result.reply));
@@ -117,7 +119,7 @@ export function VoiceAssistant() {
         );
       }, 800);
     },
-    [pushMessage, rides, ridesError, router, speak],
+    [pushMessage, refuels, rides, ridesError, router, speak],
   );
 
   const speech = useVoiceCommand({ onResult: handleCommand });
