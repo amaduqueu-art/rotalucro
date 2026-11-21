@@ -27,7 +27,7 @@ export const FUEL_OPTIONS: readonly FuelOption[] = [
     unitLabel: 'metros cúbicos (m³)',
     quantityLabel: 'Quantidade abastecida (m³)',
     priceLabel: 'Preço do m³ (R$)',
-    defaultUnitPrice: 4.49,
+    defaultUnitPrice: 4.89,
     help: 'Informe os metros cúbicos registrados na bomba do posto.',
   },
   {
