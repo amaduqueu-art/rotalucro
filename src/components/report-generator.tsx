@@ -290,7 +290,7 @@ export function ReportGenerator() {
                   <th className="py-2 pr-3">Data/Hora</th>
                   <th className="py-2 pr-3">KM rodados</th>
                   <th className="py-2 pr-3">Valor</th>
-                  <th className="py-2 pr-3">Combustível (parcela)</th>
+                  <th className="py-2 pr-3">Combustível rateado</th>
                   <th className="py-2 pr-3">Pagamento</th>
                   <th className="py-2 pr-3">Lucro</th>
                 </tr>
@@ -337,8 +337,10 @@ export function ReportGenerator() {
         <footer className="mt-6 border-t pt-3 text-xs text-muted-foreground">
           <p>
             Relatório gerado pelo RotaLucro em {formatDateTime(emittedAt)}. Valores
-            em reais (BRL). Combustível exibido como parcela rateada do
-            abastecimento.
+            em reais (BRL). A coluna &quot;Combustível rateado&quot; é a parte do
+            abastecimento atribuída a cada corrida, proporcional aos KM rodados
+            (ou dividida igualmente quando não há KM), calculada a partir dos
+            registros em Abastecimentos.
           </p>
         </footer>
       </div>
