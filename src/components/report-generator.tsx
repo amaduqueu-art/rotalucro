@@ -11,6 +11,7 @@ import { useRides } from '@/hooks/use-rides';
 import {
   formatBRL,
   formatDateTime,
+  formatFuelQuantity,
   formatFuelType,
   formatKm,
   formatPaymentMethod,
@@ -77,6 +78,26 @@ export function ReportGenerator() {
       );
     return candidates[0] ?? null;
   }, [refuels, range]);
+
+  const refuelsInPeriod = useMemo(() => {
+    if (!refuels) return [];
+    return refuels.filter((r) => {
+      const at = new Date(r.fueled_at);
+      return at >= range.start && at <= range.end;
+    });
+  }, [refuels, range]);
+
+  const refuelTotals = useMemo(() => {
+    return refuelsInPeriod.reduce(
+      (acc, r) => {
+        acc.count += 1;
+        acc.cost += Number(r.total_cost);
+        acc.quantity += Number(r.quantity);
+        return acc;
+      },
+      { count: 0, cost: 0, quantity: 0 },
+    );
+  }, [refuelsInPeriod]);
 
   const totals = useMemo(() => {
     return filteredRides.reduce(
@@ -253,11 +274,27 @@ export function ReportGenerator() {
             <h2 className="mb-1 font-bold">Último abastecimento</h2>
             <p>
               Data: {formatDateTime(lastRefuel.fueled_at)} — Combustível:{' '}
-              {formatFuelType(lastRefuel.fuel_type)}
+              {formatFuelType(lastRefuel.fuel_type)} — Quantidade:{' '}
+              {formatFuelQuantity(lastRefuel.quantity, lastRefuel.fuel_type)}
               {lastRefuel.station ? ` — Posto: ${lastRefuel.station}` : ''}
             </p>
           </section>
         )}
+
+        <section className="mb-6 rounded-xl border bg-secondary/40 p-4 text-sm">
+          <h2 className="mb-1 font-bold">Abastecimentos no período</h2>
+          <p>
+            {refuelTotals.count} abastecimento(s) — Total pago na bomba:{' '}
+            {formatBRL(refuelTotals.cost)} — Quantidade:{' '}
+            {refuelTotals.quantity.toFixed(2).replace('.', ',')} (litros/m³)
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Compare com a soma das parcelas rateadas ({formatBRL(totals.fuelCost)})
+            das corridas do período. A diferença ocorre quando a janela de um
+            abastecimento inclui corridas fora do período (ou quando ainda não
+            há corridas suficientes para consumir o tanque).
+          </p>
+        </section>
 
         <section className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-xl border p-3">
