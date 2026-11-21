@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import { DataResetCard } from '@/components/data-reset-card';
 import { DriverPixForm } from '@/components/driver-pix-form';
+import { PixResetCard } from '@/components/pix-reset-card';
 
 export const metadata: Metadata = {
   title: 'Configurações',
@@ -21,6 +22,8 @@ export default function ConfiguracoesPage() {
         </p>
       </header>
       <DriverPixForm />
+
+      <PixResetCard />
 
       <DataResetCard />
     </div>
