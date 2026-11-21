@@ -156,8 +156,11 @@ as corridas registradas até o **próximo abastecimento**:
 - a soma das parcelas é sempre exatamente o custo do abastecimento (a sobra do
   arredondamento vai na última corrida da janela).
 
-Exemplo: R$ 50,00 abastecidos e 5 corridas de 10 km cada → R$ 10,00 de
-combustível em cada uma (lucro de R$ 0,00 por corrida, não −R$ 40,00).
+Exemplo: 5 corridas de R$ 10,00 cada (10 km cada) e um abastecimento de
+R$ 50,00 → parcela de combustível de R$ 10,00 em cada uma, lucro de
+R$ 0,00 por corrida. Se em vez disso o tanque inteiro (R$ 50,00) fosse
+descontado de uma única corrida de R$ 10,00, o lucro seria −R$ 40,00 —
+por isso o rateio evita esse erro.
 Se o motorista ainda não fez outras corridas, a prévia mostra a parcela maior
 e se reequilibra conforme novas corridas são registradas.
 
