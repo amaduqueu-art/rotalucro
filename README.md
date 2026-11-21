@@ -15,6 +15,15 @@ as próprias corridas.
 
 ---
 
+## O que mudou nesta versão (2.3)
+
+| Área | Novidade |
+| --- | --- |
+| Correção | `rides.fuel_type` agora é **opcional**: o app salva corridas sem esse campo (o tipo fica em `fuel_refuels`), então o NOT NULL antigo causava erro ao registrar corrida. |
+
+<details>
+<summary>Versão 2.1 (abastecimento rateado e rota)</summary>
+
 ## O que mudou nesta versão (2.1)
 
 | Área | Novidade |
@@ -36,6 +45,8 @@ as próprias corridas.
 | Dashboard | Cards de **Faturamento, Despesas, Lucro líquido e KM rodado** + painel de abastecimentos |
 | Tema | **Dark mode** com alternância no cabeçalho |
 | Banco | Scripts SQL idempotentes que **migram sem perder dados**; o abastecimento antigo vira um registro em `fuel_refuels` |
+
+</details>
 
 ---
 
@@ -98,8 +109,9 @@ src/
 │   └── supabase/               # clients browser/server + tipos
 └── types/web-speech.d.ts       # Tipagem da Web Speech API
 supabase/
-├── schema.sql                  # Schema mestre (instalação limpa)
-└── migration-2.1-fuel-route.sql # Migração 2.1 para projetos já instalados
+├── schema.sql                          # Schema mestre (instalação limpa)
+├── migration-2.1-fuel-route.sql         # Migração 2.1 para projetos já instalados
+└── migration-2.3-rides-fuel-type-nullable.sql # Corrige NOT NULL de rides.fuel_type
 scripts/test-assistant.ts       # Testes do assistente
 scripts/test-fuel-route.ts      # Testes de rateio e rota
 ```
@@ -114,15 +126,20 @@ scripts/test-fuel-route.ts      # Testes de rateio e rota
    o [`supabase/migration-2.1-fuel-route.sql`](supabase/migration-2.1-fuel-route.sql)
    e clique em **Run**. Isso cria `fuel_refuels`, transfere os abastecimentos
    antigos das corridas e adiciona as colunas de rota.
-3. **Instalação limpa:** rode apenas o
+3. **Correção 2.3 (builds já instalados):** rode também o
+   [`supabase/migration-2.3-rides-fuel-type-nullable.sql`](supabase/migration-2.3-rides-fuel-type-nullable.sql).
+   Ele torna `rides.fuel_type` opcional e corrige o erro
+   `null value in column "fuel_type" violates not-null constraint` ao salvar
+   uma corrida.
+4. **Instalação limpa:** rode apenas o
    [`supabase/schema.sql`](supabase/schema.sql), que já contém o equivalente
-   da migração 2.1.
+   das migrações 2.1 e 2.3.
 
-Ambos os scripts são **reexecutáveis** e preservam as corridas existentes.
+Todos os scripts são **reexecutáveis** e preservam as corridas existentes.
 
-> ⚠️ A migração 2.1 é **obrigatória** para abastecimentos e rota funcionarem.
-> Sem ela o app continua lendo as corridas, mas os botões de abastecimento e
-> o salvamento da rota falham.
+> ⚠️ As migrações 2.1 e 2.3 são **obrigatórias** para abastecimentos, rota e
+> salvamento de corridas funcionarem. Sem a 2.1 os botões de abastecimento e
+> o salvamento da rota falham; sem a 2.3 o app não consegue gravar corridas.
 
 ### Como o combustível é rateado
 
@@ -166,6 +183,8 @@ e se reequilibra conforme novas corridas são registradas.
 
 As colunas antigas `fuel_type`, `fuel_quantity` e `fuel_unit_price` continuam na
 tabela apenas para histórico/migração; o app não as usa mais em corridas.
+`fuel_type` é **opcional (legado)** desde a migração 2.3 — o tipo do
+combustível é gravado em `fuel_refuels.fuel_type`, que continua obrigatório.
 
 ### Modelo da tabela `fuel_refuels`
 

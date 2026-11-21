@@ -94,8 +94,8 @@ create table if not exists public.rides (
   -- Receita
   fare              numeric(12,2) not null,
 
-  -- Combustível
-  fuel_type         public.fuel_type not null,
+  -- Combustível (legado: o app registra o tipo em fuel_refuels; manter opcional)
+  fuel_type         public.fuel_type,
   -- Litros (álcool/gasolina) ou metros cúbicos (GNV).
   fuel_quantity     numeric(12,2) not null,
   -- Preço por litro ou m³ no momento do abastecimento.
@@ -149,6 +149,12 @@ alter table public.rides
 alter table public.rides
   alter column fuel_unit_price set not null;
 
+-- O app não envia fuel_type ao criar corridas: o tipo fica em fuel_refuels.
+-- Tornar a coluna opcional evita o erro "null value in column fuel_type
+-- violates not-null constraint" (migração 2.3).
+alter table public.rides
+  alter column fuel_type drop not null;
+
 -- Colunas geradas (sempre coerentes, calculadas pelo PostgreSQL).
 alter table public.rides drop column if exists profit;
 alter table public.rides
@@ -175,7 +181,7 @@ comment on column public.rides.fare is
   'Valor recebido pela corrida (R$).';
 
 comment on column public.rides.fuel_type is
-  'Combustível abastecido: GNV, Álcool ou Gasolina.';
+  'Legado/opcional: tipo de combustível da corrida. O app registra o tipo em fuel_refuels.';
 
 comment on column public.rides.fuel_quantity is
   'Quantidade abastecida: litros (álcool/gasolina) ou metros cúbicos (GNV).';
