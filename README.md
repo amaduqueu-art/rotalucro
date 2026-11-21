@@ -21,6 +21,7 @@ as próprias corridas.
 | --- | --- |
 | **PIX por motorista** | Cada taxista cadastra **sua própria chave** em **Configurações** (CPF, CNPJ, e-mail, celular ou aleatória). O QR Code usa os dados da conta logada — o app pode ser distribuído para vários motoristas sem editar código |
 | **Correção do banco** | `fuel_type` e `fuel_quantity` deixaram de ser obrigatórios em `rides`: era a causa do erro intermitente ao salvar uma corrida |
+| **Relatórios** | Nova tela **Relatórios** para emitir relatórios diário, semanal, mensal, trimestral, semestral e anual das corridas, com KM, valor, último abastecimento e tipo de combustível; imprimir ou salvar como PDF (com nome, CPF e turno opcionais) |
 | **Combustível** | **Abastecimento é um evento separado**: você informa quantidade/preço só quando abastece, pelo botão **“Abasteci agora”** |
 | **Rateio** | Cada abastecimento é dividido entre as corridas seguintes, **proporcionalmente aos KM** — uma corrida de R$ 10 não desconta um tanque de R$ 50 inteiro |
 | **Mapa** | Botão **“Iniciar rota”** abre um mini-mapa Leaflet/OpenStreetMap (gratuito, sem chave); a rota é salva com a corrida e pode ser revista no histórico |
@@ -221,6 +222,19 @@ acessa a própria. O app grava com `upsert(..., { onConflict: 'user_id' })`.
 **RLS:** `select`/`insert`/`update`/`delete` apenas para `authenticated` e
 somente quando `auth.uid() = user_id` — em **todas** as tabelas (`rides`,
 `fuel_refuels` e `driver_profiles`). Visitante anônimo não lê nada.
+
+## 1.1 Relatórios (PDF)
+
+A tela **Relatórios** (`/relatorios`, link no menu inferior) gera um relatório
+das corridas do período escolhido:
+
+- Períodos: **diário, semanal, mensal, trimestral, semestral e anual**.
+- Conteúdo: data/hora de cada corrida, KM rodados, valor, combustível (parcela
+  rateada), forma de pagamento e lucro; totais do período; data/hora de emissão.
+- Dados opcionais: nome do motorista, CPF e turno (data + hora de início/fim).
+- Último abastecimento (data/hora e tipo de combustível).
+- Botão **Imprimir / Salvar como PDF** (usa a impressão do navegador, que
+  permite salvar em PDF ou imprimir em papel).
 
 ---
 

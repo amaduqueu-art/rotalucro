@@ -1,6 +1,6 @@
 'use client';
 
-import { Fuel, History, Home, PlusCircle } from 'lucide-react';
+import { FileText, Fuel, History, Home, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -11,6 +11,7 @@ const ITEMS = [
   { href: '/registrar', label: 'Registrar', icon: PlusCircle, highlight: true },
   { href: '/abastecimentos', label: 'Abastecer', icon: Fuel },
   { href: '/historico', label: 'Histórico', icon: History },
+  { href: '/relatorios', label: 'Relatórios', icon: FileText },
 ];
 
 export function BottomNav() {
@@ -24,7 +25,7 @@ export function BottomNav() {
       aria-label="Navegação inferior"
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 shadow-[0_-4px_20px_-12px_rgba(10,30,53,0.35)] backdrop-blur md:hidden"
     >
-      <ul className="safe-bottom grid grid-cols-4 px-2 pt-1">
+      <ul className="safe-bottom grid grid-cols-5 px-2 pt-1">
         {ITEMS.map((item) => {
           const active = isActive(item.href);
           const Icon = item.icon;
