@@ -4,6 +4,28 @@ export type PaymentMethod = 'dinheiro' | 'cartao' | 'pix' | 'aplicativo';
 
 export type PaymentStatus = 'pendente' | 'pago';
 
+/** Tipos de chave aceitos pelo PIX (usados no BR Code). */
+export type PixKeyType = 'CPF' | 'CNPJ' | 'EMAIL' | 'TELEFONE' | 'ALEATORIA';
+
+/** Perfil PIX do motorista logado (uma linha por usuário). */
+export type DriverProfile = {
+  user_id: string;
+  pix_key_type: PixKeyType;
+  pix_key: string;
+  /** Nome curto exibido no comprovante (máx. 25 caracteres no BR Code). */
+  merchant_name: string;
+  /** Cidade exibida no comprovante (máx. 15 caracteres no BR Code). */
+  merchant_city: string;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Dados editáveis pelo motorista em Configurações. */
+export type DriverProfileInput = Pick<
+  DriverProfile,
+  'pix_key_type' | 'pix_key' | 'merchant_name' | 'merchant_city'
+>;
+
 /** Um ponto capturado durante a rota da corrida. */
 export type RoutePoint = {
   lat: number;
@@ -113,6 +135,12 @@ export type Database = {
         Update: Partial<FuelRefuelInsert>;
         Relationships: [];
       };
+      driver_profiles: {
+        Row: DriverProfile;
+        Insert: DriverProfileInput & { user_id: string };
+        Update: Partial<DriverProfileInput>;
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -124,6 +152,7 @@ export type Database = {
       fuel_type: FuelType;
       payment_method: PaymentMethod;
       payment_status: PaymentStatus;
+      pix_key_type: PixKeyType;
     };
     CompositeTypes: {
       [_ in never]: never;

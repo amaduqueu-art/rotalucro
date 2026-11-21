@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { CarTaxiFront } from 'lucide-react';
+import { CarTaxiFront, Settings } from 'lucide-react';
 
 import { LogoutButton } from '@/components/logout-button';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -30,6 +30,15 @@ export function SiteHeader({ email }: { email: string }) {
           >
             {email}
           </span>
+          <Link
+            href="/configuracoes"
+            title="Configurações (chave PIX)"
+            aria-label="Configurações (chave PIX)"
+            className="flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-primary-foreground hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Settings className="size-5" aria-hidden="true" />
+            <span className="hidden lg:inline">Configurações</span>
+          </Link>
           <ThemeToggle className="text-primary-foreground hover:bg-white/10" />
           <LogoutButton />
         </div>

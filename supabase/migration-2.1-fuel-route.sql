@@ -161,6 +161,22 @@ create policy "fuel_refuels_delete_own"
 revoke all on public.fuel_refuels from anon;
 grant select, insert, update, delete on public.fuel_refuels to authenticated;
 
+-- -----------------------------------------------------------------------------
+-- 5. Correção aplicada também na migration 2.2
+-- -----------------------------------------------------------------------------
+-- O app 2.1+ não preenche mais fuel_type/fuel_quantity ao salvar uma corrida:
+-- o abastecimento passou a ser um evento em `fuel_refuels`. Mantê-las NOT NULL
+-- causava erro intermitente no insert. Valores antigos são preservados.
+alter table public.rides
+  alter column fuel_type drop not null,
+  alter column fuel_quantity drop not null,
+  alter column fuel_cost set default 0;
+
+alter table public.rides drop constraint if exists rides_fuel_quantity_positive;
+alter table public.rides
+  add constraint rides_fuel_quantity_positive
+  check (fuel_quantity is null or fuel_quantity > 0);
+
 notify pgrst, 'reload schema';
 
 -- Verificação rápida (opcional):

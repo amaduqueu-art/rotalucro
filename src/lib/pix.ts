@@ -1,12 +1,13 @@
-import { BRAND } from '@/lib/brand';
+import type { PixKeyType } from '@/lib/supabase/types';
 
 /**
  * Geração do "PIX Copia e Cola" (BR Code / EMV).
  *
- * O QR Code é ESTÁTICO: ele carrega a chave, o valor e um identificador da
- * corrida. Bancos não avisam este app quando o PIX cai — por isso o motorista
- * confirma o recebimento na tela (ver PixQrDialog). Para confirmação automática
- * é necessário integrar um PSP (Mercado Pago, Asaas, Efí...) com webhook.
+ * A chave NÃO fica no código: cada motorista cadastra a sua em Configurações
+ * (`driver_profiles`). O QR Code é estático: carrega a chave do motorista, o
+ * valor e um identificador da corrida. Bancos não avisam este app quando o PIX
+ * cai — por isso o motorista confirma o recebimento (ver PixQrDialog). Para
+ * confirmação automática é necessário integrar um PSP com webhook.
  */
 
 /** Remove acentos, caracteres especiais e limita o tamanho. */
@@ -55,23 +56,96 @@ export function createPixTxid(seed = ''): string {
     .toUpperCase();
 }
 
+/**
+ * Normaliza a chave conforme o tipo antes de gravá-la no BR Code.
+ * CPF/CNPJ/TELEFONE usam somente dígitos; telefone ganha o prefixo 55;
+ * e-mail é minúsculo e sem espaços; aleatória é mantida exatamente como
+ * cadastrada (ela pode conter hífens e letras).
+ */
+export function normalizePixKey(key: string, keyType: PixKeyType): string {
+  const value = key.trim();
+
+  switch (keyType) {
+    case 'CPF':
+    case 'CNPJ':
+      return value.replace(/\D/g, '');
+    case 'TELEFONE': {
+      const digits = value.replace(/\D/g, '').replace(/^0+/, '');
+      return digits.length === 11 ? `55${digits}` : digits;
+    }
+    case 'EMAIL':
+      return value.replace(/\s+/g, '').toLowerCase();
+    case 'ALEATORIA':
+      return value;
+    default:
+      return value;
+  }
+}
+
+/** Chave legível para exibição na tela (máscara de CPF/CNPJ/telefone). */
+export function formatPixKey(
+  key: string,
+  keyType: PixKeyType = 'CPF',
+): string {
+  const value = key.trim();
+  const digits = value.replace(/\D/g, '');
+
+  if (keyType === 'CPF' && digits.length === 11) {
+    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(
+      6,
+      9,
+    )}-${digits.slice(9)}`;
+  }
+
+  if (keyType === 'CNPJ' && digits.length === 14) {
+    return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(
+      5,
+      8,
+    )}/${digits.slice(8, 12)}-${digits.slice(12)}`;
+  }
+
+  if (keyType === 'TELEFONE') {
+    const local =
+      digits.length === 13 && digits.startsWith('55')
+        ? digits.slice(2)
+        : digits;
+
+    if (local.length === 11) {
+      return `+55 (${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`;
+    }
+    if (local.length === 10) {
+      return `+55 (${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`;
+    }
+  }
+
+  return value;
+}
+
 export interface PixPayloadInput {
   amount: number;
   txid: string;
-  key?: string;
-  merchantName?: string;
-  merchantCity?: string;
+  /** Chave do motorista logado (vem de driver_profiles). */
+  key: string;
+  keyType: PixKeyType;
+  merchantName: string;
+  merchantCity: string;
 }
 
 /** Gera o payload "copia e cola" do PIX estático. */
 export function buildPixPayload({
   amount,
   txid,
-  key = BRAND.pix.key,
-  merchantName = BRAND.pix.merchantName,
-  merchantCity = BRAND.pix.merchantCity,
+  key,
+  keyType,
+  merchantName,
+  merchantCity,
 }: PixPayloadInput): string {
-  const safeKey = key.replace(/\D/g, '') || key;
+  const safeKey = normalizePixKey(key, keyType);
+
+  if (!safeKey) {
+    throw new Error('Cadastre sua chave PIX em Configurações antes de cobrar.');
+  }
+
   const safeTxid = txid.replace(/[^A-Za-z0-9]/g, '').slice(0, 25) || '***';
   const safeAmount = Math.max(amount, 0).toFixed(2);
 

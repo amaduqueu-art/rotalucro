@@ -13,6 +13,8 @@
 --      preço unitário, despesas extras, forma de pagamento, status PIX etc.
 --   3. Recalcula as colunas geradas `profit` e `distance_km`.
 --   4. Recria índices, trigger de updated_at e políticas de RLS.
+--   5. Cria `driver_profiles` (chave PIX por motorista) e corrige as colunas
+--      legadas `fuel_type`/`fuel_quantity`, que impediam salvar corridas.
 --
 -- Segurança: cada motorista lê e edita SOMENTE as próprias corridas
 -- (auth.uid() = user_id). Visitante anônimo não acessa nada.
@@ -94,14 +96,14 @@ create table if not exists public.rides (
   -- Receita
   fare              numeric(12,2) not null,
 
-  -- Combustível (legado: o app registra o tipo em fuel_refuels; manter opcional)
+  -- Combustível (legado: desde a 2.1 o abastecimento vive em `fuel_refuels`)
   fuel_type         public.fuel_type,
   -- Litros (álcool/gasolina) ou metros cúbicos (GNV).
-  fuel_quantity     numeric(12,2) not null,
+  fuel_quantity     numeric(12,2),
   -- Preço por litro ou m³ no momento do abastecimento.
   fuel_unit_price   numeric(12,3) not null default 0,
-  -- Custo = quantidade × preço unitário (preenchido pelo app).
-  fuel_cost         numeric(12,2) not null,
+  -- Custo = parcela rateada preenchida pelo app (padrão para inserts antigos).
+  fuel_cost         numeric(12,2) not null default 0,
 
   -- Despesas extras do trajeto (pedágio, lavagem, lanche...).
   extra_expenses    numeric(12,2) not null default 0,
@@ -149,12 +151,6 @@ alter table public.rides
 alter table public.rides
   alter column fuel_unit_price set not null;
 
--- O app não envia fuel_type ao criar corridas: o tipo fica em fuel_refuels.
--- Tornar a coluna opcional evita o erro "null value in column fuel_type
--- violates not-null constraint" (migração 2.3).
-alter table public.rides
-  alter column fuel_type drop not null;
-
 -- Colunas geradas (sempre coerentes, calculadas pelo PostgreSQL).
 alter table public.rides drop column if exists profit;
 alter table public.rides
@@ -181,10 +177,10 @@ comment on column public.rides.fare is
   'Valor recebido pela corrida (R$).';
 
 comment on column public.rides.fuel_type is
-  'Legado/opcional: tipo de combustível da corrida. O app registra o tipo em fuel_refuels.';
+  'Legado: GNV, Álcool ou Gasolina. Opcional desde a 2.2 (abastecimento em fuel_refuels).';
 
 comment on column public.rides.fuel_quantity is
-  'Quantidade abastecida: litros (álcool/gasolina) ou metros cúbicos (GNV).';
+  'Legado: litros ou m³. Opcional desde a 2.2 (NULL é aceito pelo CHECK).';
 
 comment on column public.rides.fuel_unit_price is
   'Preço por litro ou m³ no abastecimento.';
@@ -228,7 +224,8 @@ alter table public.rides
 
 alter table public.rides drop constraint if exists rides_fuel_quantity_positive;
 alter table public.rides
-  add constraint rides_fuel_quantity_positive check (fuel_quantity > 0);
+  add constraint rides_fuel_quantity_positive
+  check (fuel_quantity is null or fuel_quantity > 0);
 
 alter table public.rides drop constraint if exists rides_fuel_unit_price_non_negative;
 alter table public.rides
@@ -403,5 +400,98 @@ create policy "fuel_refuels_delete_own"
 
 revoke all on public.fuel_refuels from anon;
 grant select, insert, update, delete on public.fuel_refuels to authenticated;
+
+-- -----------------------------------------------------------------------------
+-- 11. Chave PIX por motorista + correção de `rides` (equivalente à migration-2.2)
+-- -----------------------------------------------------------------------------
+-- Cada taxista cadastra sua própria chave em Configurações. Nada de chave fixa
+-- no código: o BR Code é gerado com os dados do perfil do usuário logado.
+
+do $$
+begin
+  create type public.pix_key_type as enum (
+    'CPF', 'CNPJ', 'EMAIL', 'TELEFONE', 'ALEATORIA'
+  );
+exception
+  when duplicate_object then null;
+end $$;
+
+create table if not exists public.driver_profiles (
+  user_id        uuid primary key references auth.users (id) on delete cascade,
+  pix_key_type   public.pix_key_type not null default 'CPF',
+  pix_key        text not null,
+  merchant_name  text not null,
+  merchant_city  text not null default 'BRASIL',
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+
+alter table public.driver_profiles
+  drop constraint if exists driver_profiles_pix_key_not_blank;
+alter table public.driver_profiles
+  add constraint driver_profiles_pix_key_not_blank
+  check (char_length(btrim(pix_key)) between 1 and 77);
+
+alter table public.driver_profiles
+  drop constraint if exists driver_profiles_merchant_name_length;
+alter table public.driver_profiles
+  add constraint driver_profiles_merchant_name_length
+  check (char_length(btrim(merchant_name)) between 1 and 25);
+
+alter table public.driver_profiles
+  drop constraint if exists driver_profiles_merchant_city_length;
+alter table public.driver_profiles
+  add constraint driver_profiles_merchant_city_length
+  check (char_length(btrim(merchant_city)) between 1 and 15);
+
+comment on table public.driver_profiles is
+  'Chave PIX e dados de recebimento de cada motorista (um registro por auth.uid()).';
+comment on column public.driver_profiles.pix_key is
+  'Chave PIX cadastrada pelo motorista. Aparece no QR Code; não é segredo.';
+
+drop trigger if exists driver_profiles_set_updated_at on public.driver_profiles;
+create trigger driver_profiles_set_updated_at
+  before update on public.driver_profiles
+  for each row
+  when (old.* is distinct from new.*)
+  execute function public.set_updated_at();
+
+-- O formulário 2.1+ não envia fuel_type/fuel_quantity: não podem ser NOT NULL.
+alter table public.rides
+  alter column fuel_type drop not null,
+  alter column fuel_quantity drop not null,
+  alter column fuel_cost set default 0;
+
+alter table public.rides drop constraint if exists rides_fuel_quantity_positive;
+alter table public.rides
+  add constraint rides_fuel_quantity_positive
+  check (fuel_quantity is null or fuel_quantity > 0);
+
+alter table public.driver_profiles enable row level security;
+
+drop policy if exists "driver_profiles_select_own" on public.driver_profiles;
+drop policy if exists "driver_profiles_insert_own" on public.driver_profiles;
+drop policy if exists "driver_profiles_update_own" on public.driver_profiles;
+drop policy if exists "driver_profiles_delete_own" on public.driver_profiles;
+
+create policy "driver_profiles_select_own"
+  on public.driver_profiles for select to authenticated
+  using (auth.uid() = user_id);
+
+create policy "driver_profiles_insert_own"
+  on public.driver_profiles for insert to authenticated
+  with check (auth.uid() = user_id);
+
+create policy "driver_profiles_update_own"
+  on public.driver_profiles for update to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+create policy "driver_profiles_delete_own"
+  on public.driver_profiles for delete to authenticated
+  using (auth.uid() = user_id);
+
+revoke all on public.driver_profiles from anon;
+grant select, insert, update, delete on public.driver_profiles to authenticated;
 
 notify pgrst, 'reload schema';

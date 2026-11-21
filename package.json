@@ -1,6 +1,6 @@
 {
   "name": "rotarrendacomlucro",
-  "version": "2.0.0",
+  "version": "2.2.0",
   "private": true,
   "description": "RotaRendaComLucro — gestão financeira de corridas de táxi (Next.js + Supabase)",
   "scripts": {
@@ -8,9 +8,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "tsx scripts/test-assistant.ts && tsx scripts/test-fuel-route.ts",
+    "test": "tsx scripts/test-assistant.ts && tsx scripts/test-fuel-route.ts && tsx scripts/test-pix.ts",
     "test:assistant": "tsx scripts/test-assistant.ts",
-    "test:fuel-route": "tsx scripts/test-fuel-route.ts"
+    "test:fuel-route": "tsx scripts/test-fuel-route.ts",
+    "test:pix": "tsx scripts/test-pix.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

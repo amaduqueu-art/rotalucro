@@ -22,6 +22,7 @@ import {
   TrendingUp,
   Wallet,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
@@ -34,10 +35,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Modal } from '@/components/ui/modal';
 import { Textarea } from '@/components/ui/textarea';
+import { useDriverProfile } from '@/hooks/use-driver-profile';
 import { useRides } from '@/hooks/use-rides';
 import { useRouteTracker } from '@/hooks/use-route-tracker';
 import { useSpeechRecognition } from '@/hooks/use-speech-recognition';
-import { BRAND, formatPixKey } from '@/lib/brand';
 import { computeRideMetrics, parseDecimal, round } from '@/lib/calc';
 import { LIMITS, PAYMENT_OPTIONS } from '@/lib/constants';
 import { allocateFuel } from '@/lib/fuel-allocation';
@@ -50,7 +51,7 @@ import {
   parseDatetimeLocal,
   toDatetimeLocalValue,
 } from '@/lib/format';
-import { createPixTxid } from '@/lib/pix';
+import { createPixTxid, formatPixKey } from '@/lib/pix';
 import { parseStoredRoute } from '@/lib/route';
 import { createClient } from '@/lib/supabase/client';
 import type {
@@ -133,6 +134,8 @@ export function RideForm({ ride, initialFare }: RideFormProps) {
 
   const { rides, refuels, refuelsError, addRefuel, reload: reloadRides } =
     useRides();
+  const { profile: pixProfile, loading: pixProfileLoading } =
+    useDriverProfile();
   const initialRoute = useMemo(() => parseStoredRoute(ride?.route), [ride?.route]);
   const tracker = useRouteTracker(
     initialRoute,
@@ -1100,10 +1103,29 @@ export function RideForm({ ride, initialFare }: RideFormProps) {
               <QrCode className="size-4 text-accent" aria-hidden="true" />
               Recebimento via PIX
             </p>
-            <p className="mt-2 leading-relaxed text-muted-foreground">
-              Chave {BRAND.pix.keyType} de <strong>{BRAND.owner}</strong>:{' '}
-              <span className="font-mono">{formatPixKey()}</span>
-            </p>
+            {pixProfile ? (
+              <p className="mt-2 leading-relaxed text-muted-foreground">
+                Chave {pixProfile.pix_key_type} de{' '}
+                <strong>{pixProfile.merchant_name}</strong>:{' '}
+                <span className="font-mono">
+                  {formatPixKey(pixProfile.pix_key, pixProfile.pix_key_type)}
+                </span>
+              </p>
+            ) : (
+              <p className="mt-2 leading-relaxed text-amber-800 dark:text-amber-200">
+                {pixProfileLoading
+                  ? 'Carregando sua chave PIX...'
+                  : 'Você ainda não cadastrou sua chave PIX. '}
+                {!pixProfileLoading ? (
+                  <Link
+                    href="/configuracoes"
+                    className="font-semibold underline underline-offset-2"
+                  >
+                    Configurar agora
+                  </Link>
+                ) : null}
+              </p>
+            )}
             {savedAlreadyPaid ? (
               <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-950 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-100">
                 Esta corrida já está marcada como paga. Ao gerar o QR Code, o

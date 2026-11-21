@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  AlertTriangle,
   BadgeCheck,
   Check,
   Copy,
@@ -9,14 +10,15 @@ import {
   QrCode,
   ShieldCheck,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
-import { BRAND, formatPixKey } from '@/lib/brand';
+import { useDriverProfile } from '@/hooks/use-driver-profile';
 import { formatBRL } from '@/lib/format';
-import { buildPixPayload, createPixTxid } from '@/lib/pix';
+import { buildPixPayload, createPixTxid, formatPixKey } from '@/lib/pix';
 import { createClient } from '@/lib/supabase/client';
 import type { PaymentStatus } from '@/lib/supabase/types';
 import { cn, getErrorMessage } from '@/lib/utils';
@@ -55,16 +57,26 @@ export function PixQrDialog({
   const [paid, setPaid] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
+  const { profile, loading: profileLoading, unavailable } = useDriverProfile();
+
   const fallbackTxid = useMemo(
     () => createPixTxid(charge?.id ?? ''),
     [charge?.id],
   );
   const txid = charge?.pix_txid ?? fallbackTxid;
 
-  const payload = useMemo(
-    () => (charge ? buildPixPayload({ amount: charge.fare, txid }) : ''),
-    [charge, txid],
-  );
+  const payload = useMemo(() => {
+    if (!charge || !profile) return '';
+
+    return buildPixPayload({
+      amount: charge.fare,
+      txid,
+      key: profile.pix_key,
+      keyType: profile.pix_key_type,
+      merchantName: profile.merchant_name,
+      merchantCity: profile.merchant_city,
+    });
+  }, [charge, txid, profile]);
 
   useEffect(() => {
     if (!open || !charge) {
@@ -77,6 +89,9 @@ export function PixQrDialog({
     setCopied(false);
     setQrError(null);
     setDataUrl(null);
+
+    // Sem perfil carregado ainda não há chave: o aviso aparece na tela.
+    if (!payload) return;
 
     let active = true;
 
@@ -188,7 +203,7 @@ export function PixQrDialog({
             <p className="text-lg font-extrabold">Pagamento confirmado!</p>
             <p className="text-sm leading-relaxed">
               {formatBRL(charge.fare)} recebidos via PIX para{' '}
-              <strong>{BRAND.owner}</strong>.
+              <strong>{profile?.merchant_name ?? 'você'}</strong>.
             </p>
             <p className="text-xs opacity-80">
               A corrida ficou marcada como paga no seu histórico.
@@ -216,7 +231,7 @@ export function PixQrDialog({
               // eslint-disable-next-line @next/next/no-img-element -- QR gerado no cliente
               <img
                 src={dataUrl}
-                alt={`QR Code PIX de ${formatBRL(charge.fare)} para ${BRAND.owner}`}
+                alt={`QR Code PIX de ${formatBRL(charge.fare)} para ${profile?.merchant_name ?? 'você'}`}
                 width={224}
                 height={224}
                 className="size-56"
@@ -233,12 +248,40 @@ export function PixQrDialog({
             )}
           </div>
 
-          <div className="space-y-1 text-center text-sm">
-            <p className="font-bold text-foreground">{BRAND.pix.merchantName}</p>
-            <p className="text-muted-foreground">
-              Chave PIX ({BRAND.pix.keyType}): {formatPixKey()}
-            </p>
-          </div>
+          {!profileLoading && !profile ? (
+            <div
+              role="alert"
+              className="space-y-2 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-100"
+            >
+              <p className="flex items-start gap-2 font-semibold">
+                <AlertTriangle
+                  className="mt-0.5 size-4 shrink-0"
+                  aria-hidden="true"
+                />
+                Cadastre sua chave PIX para gerar o QR Code.
+              </p>
+              <p className="leading-relaxed">
+                {unavailable
+                  ? 'Peça ao administrador para rodar a migração 2.2 no Supabase.'
+                  : 'Cada taxista usa a própria chave — configure a sua uma única vez.'}
+              </p>
+              <Link
+                href="/configuracoes"
+                onClick={onClose}
+                className="inline-flex min-h-11 items-center justify-center rounded-lg bg-accent px-4 text-sm font-bold text-accent-foreground hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Configurar minha chave PIX
+              </Link>
+            </div>
+          ) : profile ? (
+            <div className="space-y-1 text-center text-sm">
+              <p className="font-bold text-foreground">{profile.merchant_name}</p>
+              <p className="text-muted-foreground">
+                Chave PIX ({profile.pix_key_type}):{' '}
+                {formatPixKey(profile.pix_key, profile.pix_key_type)}
+              </p>
+            </div>
+          ) : null}
 
           <label className="block space-y-2">
             <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">

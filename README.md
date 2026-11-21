@@ -15,19 +15,12 @@ as próprias corridas.
 
 ---
 
-## O que mudou nesta versão (2.3)
+## O que mudou nesta versão (2.2)
 
 | Área | Novidade |
 | --- | --- |
-| Correção | `rides.fuel_type` agora é **opcional**: o app salva corridas sem esse campo (o tipo fica em `fuel_refuels`), então o NOT NULL antigo causava erro ao registrar corrida. |
-
-<details>
-<summary>Versão 2.1 (abastecimento rateado e rota)</summary>
-
-## O que mudou nesta versão (2.1)
-
-| Área | Novidade |
-| --- | --- |
+| **PIX por motorista** | Cada taxista cadastra **sua própria chave** em **Configurações** (CPF, CNPJ, e-mail, celular ou aleatória). O QR Code usa os dados da conta logada — o app pode ser distribuído para vários motoristas sem editar código |
+| **Correção do banco** | `fuel_type` e `fuel_quantity` deixaram de ser obrigatórios em `rides`: era a causa do erro intermitente ao salvar uma corrida |
 | **Combustível** | **Abastecimento é um evento separado**: você informa quantidade/preço só quando abastece, pelo botão **“Abasteci agora”** |
 | **Rateio** | Cada abastecimento é dividido entre as corridas seguintes, **proporcionalmente aos KM** — uma corrida de R$ 10 não desconta um tanque de R$ 50 inteiro |
 | **Mapa** | Botão **“Iniciar rota”** abre um mini-mapa Leaflet/OpenStreetMap (gratuito, sem chave); a rota é salva com a corrida e pode ser revista no histórico |
@@ -37,7 +30,7 @@ as próprias corridas.
 | Entrada por voz | Botão de microfone ao lado do valor (Web Speech API, pt-BR) |
 | Assistente | Botão **Assistente** no canto da tela: consulta lucro, despesas, KM e **gasto real em abastecimento**, e abre o formulário com o valor falado |
 | Pagamento | Campo **Dinheiro, Cartão, PIX ou Aplicativo** |
-| PIX | Após salvar, o app pergunta se deve gerar o **QR Code PIX** (CPF `821.919.994-68`) |
+| PIX | Após salvar, o app pergunta se deve gerar o **QR Code PIX** com a chave cadastrada pelo motorista |
 | Confirmação | Botão **“Já recebi o pagamento”** grava o pagamento e mostra a mensagem de confirmação |
 | Despesas | Campo **Outras despesas** (pedágio, lavagem, lanche...) |
 | Lucro | **Lucro líquido = valor da corrida − combustível rateado − outras despesas** |
@@ -45,8 +38,6 @@ as próprias corridas.
 | Dashboard | Cards de **Faturamento, Despesas, Lucro líquido e KM rodado** + painel de abastecimentos |
 | Tema | **Dark mode** com alternância no cabeçalho |
 | Banco | Scripts SQL idempotentes que **migram sem perder dados**; o abastecimento antigo vira um registro em `fuel_refuels` |
-
-</details>
 
 ---
 
@@ -72,6 +63,7 @@ src/
 │   │   ├── registrar/          # Formulário de nova corrida
 │   │   ├── historico/          # Histórico por dia
 │   │   ├── abastecimentos/     # Histórico de abastecimentos
+│   │   ├── configuracoes/      # Chave PIX por motorista
 │   │   └── corrida/[id]/       # Edição da corrida + QR PIX
 │   ├── layout.tsx              # Shell raiz, tema, metadados
 │   └── globals.css             # Design tokens (claro/escuro)
@@ -82,6 +74,7 @@ src/
 │   ├── route-map.tsx           # Mapa Leaflet da rota
 │   ├── route-map-panel.tsx     # Wrapper dynamic (ssr: false)
 │   ├── pix-qr-dialog.tsx       # QR Code + copia e cola + confirmação
+│   ├── driver-pix-form.tsx     # Cadastro da chave PIX do motorista
 │   ├── ride-card.tsx           # Card com lucro e rota salva
 │   ├── dashboard-content.tsx   # Cards de resumo + abastecimentos
 │   ├── ride-list.tsx           # Histórico agrupado por dia
@@ -90,18 +83,19 @@ src/
 │   ├── theme-toggle.tsx        # Alternância claro/escuro
 │   └── ui/                     # Button, Input, Select, Modal, etc.
 ├── hooks/
+│   ├── use-driver-profile.ts   # Chave PIX do motorista logado (RLS)
 │   ├── use-rides.ts            # Corridas + abastecimentos e rateio
 │   ├── use-route-tracker.ts    # watchPosition + fallback manual
 │   ├── use-speech-recognition.ts # Ditado do valor da corrida
 │   ├── use-voice-command.ts    # Ditado de comandos do assistente
 │   └── use-speech-synthesis.ts # Respostas faladas (TTS)
 ├── lib/
-│   ├── brand.ts                # ← NOME, DONO e CHAVE PIX (edite aqui)
+│   ├── brand.ts                # ← NOME e DONO (a chave PIX é por motorista)
 │   ├── assistant.ts            # Comandos, períodos, resumos e respostas
 │   ├── calc.ts                 # Lucro, despesas, rendimento, consumo
 │   ├── fuel-allocation.ts      # Rateio por janela/KM
 │   ├── route.ts                # Haversine, parsing e limite de pontos
-│   ├── pix.ts                  # BR Code (copia e cola) + CRC16
+│   ├── pix.ts                  # BR Code por tipo de chave + máscaras + CRC16
 │   ├── speech.ts               # “oitenta e cinco reais” → 85.00
 │   ├── constants.ts            # Combustíveis, pagamentos, limites
 │   ├── format.ts               # BRL, datas, km, unidades
@@ -109,11 +103,12 @@ src/
 │   └── supabase/               # clients browser/server + tipos
 └── types/web-speech.d.ts       # Tipagem da Web Speech API
 supabase/
-├── schema.sql                          # Schema mestre (instalação limpa)
-├── migration-2.1-fuel-route.sql         # Migração 2.1 para projetos já instalados
-└── migration-2.3-rides-fuel-type-nullable.sql # Corrige NOT NULL de rides.fuel_type
+├── schema.sql                  # Schema mestre (instalação limpa)
+├── migration-2.1-fuel-route.sql # Migração 2.1 para projetos já instalados
+└── migration-2.2-driver-pix.sql # Chave PIX por motorista + correção de rides
 scripts/test-assistant.ts       # Testes do assistente
 scripts/test-fuel-route.ts      # Testes de rateio e rota
+scripts/test-pix.ts             # Testes do BR Code por tipo de chave
 ```
 
 ---
@@ -126,20 +121,28 @@ scripts/test-fuel-route.ts      # Testes de rateio e rota
    o [`supabase/migration-2.1-fuel-route.sql`](supabase/migration-2.1-fuel-route.sql)
    e clique em **Run**. Isso cria `fuel_refuels`, transfere os abastecimentos
    antigos das corridas e adiciona as colunas de rota.
-3. **Correção 2.3 (builds já instalados):** rode também o
-   [`supabase/migration-2.3-rides-fuel-type-nullable.sql`](supabase/migration-2.3-rides-fuel-type-nullable.sql).
-   Ele torna `rides.fuel_type` opcional e corrige o erro
-   `null value in column "fuel_type" violates not-null constraint` ao salvar
-   uma corrida.
+3. **Projeto já instalado (2.1):** rode também o
+   [`supabase/migration-2.2-driver-pix.sql`](supabase/migration-2.2-driver-pix.sql).
+   Ele cria `driver_profiles` (chave PIX por motorista) e corrige o erro ao
+   salvar corrida.
 4. **Instalação limpa:** rode apenas o
    [`supabase/schema.sql`](supabase/schema.sql), que já contém o equivalente
-   das migrações 2.1 e 2.3.
+   das migrações 2.1 e 2.2.
 
 Todos os scripts são **reexecutáveis** e preservam as corridas existentes.
 
-> ⚠️ As migrações 2.1 e 2.3 são **obrigatórias** para abastecimentos, rota e
-> salvamento de corridas funcionarem. Sem a 2.1 os botões de abastecimento e
-> o salvamento da rota falham; sem a 2.3 o app não consegue gravar corridas.
+> ⚠️ A migração 2.1 é **obrigatória** para abastecimentos e rota funcionarem.
+> Sem ela o app continua lendo as corridas, mas os botões de abastecimento e
+> o salvamento da rota falham.
+>
+> ⚠️ A migração 2.2 é **obrigatória** para o PIX e para salvar corridas sem
+> erro. Sem ela, o app avisa que o perfil PIX está indisponível e o insert de
+> corridas pode falhar porque `fuel_type`/`fuel_quantity` ainda são `NOT NULL`.
+>
+> ℹ️ Se você já rodou no SQL Editor apenas o comando avulso
+> `alter column fuel_type drop not null`, não precisa desfazê-lo: a migração
+> 2.2 inclui essa alteração (e também a do `fuel_quantity`) e é idempotente.
+> Rode a migração 2.2 uma vez para criar `driver_profiles`.
 
 ### Como o combustível é rateado
 
@@ -182,9 +185,24 @@ e se reequilibra conforme novas corridas são registradas.
 | `created_at` / `updated_at` | timestamptz | Auditoria |
 
 As colunas antigas `fuel_type`, `fuel_quantity` e `fuel_unit_price` continuam na
-tabela apenas para histórico/migração; o app não as usa mais em corridas.
-`fuel_type` é **opcional (legado)** desde a migração 2.3 — o tipo do
-combustível é gravado em `fuel_refuels.fuel_type`, que continua obrigatório.
+tabela apenas para histórico/migração; o app não as usa mais em corridas. Desde
+a 2.2 elas são **opcionais** (`NULL`) e a constraint
+`rides_fuel_quantity_positive` aceita `NULL` — foi essa rigidez que causava o
+erro intermitente ao salvar.
+
+### Modelo da tabela `driver_profiles`
+
+| Coluna | Tipo | Descrição |
+| --- | --- | --- |
+| `user_id` | uuid (PK → `auth.users`) | Dono do perfil (RLS) |
+| `pix_key_type` | enum | `CPF`, `CNPJ`, `EMAIL`, `TELEFONE`, `ALEATORIA` |
+| `pix_key` | text | Chave cadastrada pelo motorista (1 a 77 caracteres) |
+| `merchant_name` | text | Nome no comprovante (até 25) |
+| `merchant_city` | text | Cidade no comprovante (até 15) |
+| `created_at` / `updated_at` | timestamptz | Auditoria |
+
+Cada usuário autenticado tem **no máximo uma linha** (`user_id` é PK) e só
+acessa a própria. O app grava com `upsert(..., { onConflict: 'user_id' })`.
 
 ### Modelo da tabela `fuel_refuels`
 
@@ -201,8 +219,8 @@ combustível é gravado em `fuel_refuels.fuel_type`, que continua obrigatório.
 | `station` / `notes` | text | Posto e observações (opcionais) |
 
 **RLS:** `select`/`insert`/`update`/`delete` apenas para `authenticated` e
-somente quando `auth.uid() = user_id` — em **ambas** as tabelas. Visitante
-anônimo não lê nada.
+somente quando `auth.uid() = user_id` — em **todas** as tabelas (`rides`,
+`fuel_refuels` e `driver_profiles`). Visitante anônimo não lê nada.
 
 ---
 
@@ -245,7 +263,7 @@ Abra http://localhost:3000, crie sua conta e registre a primeira corrida.
 npm run build   # typecheck + build de produção
 npm start       # serve o build
 npm run lint    # ESLint
-npm test        # testes do assistente + rateio/rota
+npm test        # testes do assistente + rateio/rota + BR Code PIX
 ```
 
 > A **entrada por voz** usa a Web Speech API nativa do navegador. Funciona em
@@ -256,7 +274,7 @@ npm test        # testes do assistente + rateio/rota
 
 ## 4. Personalização (marca e PIX)
 
-Tudo o que é pessoal está em **`src/lib/brand.ts`**:
+A **marca** fica em `src/lib/brand.ts`:
 
 ```ts
 export const BRAND = {
@@ -265,19 +283,19 @@ export const BRAND = {
   shortName: 'RotaRenda',
   tagline: 'Cada corrida, mais lucro no seu bolso.',
   owner: 'Maduqueu Antônio',
-  pix: {
-    key: '82191999468',          // CPF (somente números)
-    keyType: 'CPF',
-    merchantName: 'MADUQUEU ANTONIO',
-    merchantCity: 'BRASIL',
-  },
+  year: 2026,
 } as const;
 ```
 
-- O cabeçalho, rodapé, metadados e o QR Code leem desse arquivo.
-- A chave PIX fica **visível no QR Code**, como exige o PIX — não é segredo.
+- Cabeçalho, rodapé, metadados e PWA leem desse arquivo.
+- **A chave PIX não fica mais no código.** Cada motorista cadastra a sua em
+  **Configurações** (link no cabeçalho). Ela é salva em `driver_profiles`,
+  protegida por RLS — por isso o mesmo app serve vários taxistas.
+- Tipos aceitos: **CPF, CNPJ, e-mail, celular e chave aleatória**. O BR Code
+  normaliza CPF/CNPJ para dígitos, e-mail para minúsculas e celular com `+55`;
+  a chave aleatória é mantida exatamente como o banco a forneceu.
+- A chave fica **visível no QR Code**, como exige o PIX — não é segredo.
   Nunca coloque senhas, tokens ou dados bancários no app.
-- Para trocar a cidade do recebedor no BR Code, ajuste `merchantCity`.
 
 ### Sobre “patentear” o aplicativo
 
@@ -297,13 +315,20 @@ INPI (não no código).
 
 ## 5. Como o PIX funciona (e o limite dele)
 
-1. Ao salvar/editar uma corrida, o app pergunta: **“Gerar QR Code PIX?”**.
-2. Se aceitar, ele gera o **BR Code estático** com valor, chave CPF, nome do
-   recebedor e um `txid` único da corrida.
-3. O passageiro paga pelo app do banco.
-4. O motorista confere o crédito e toca em **“Já recebi o pagamento”**. O app
+1. No primeiro uso, abra **Configurações** e cadastre sua chave PIX e o nome
+   que deve aparecer no comprovante. O padrão BR Code limita nome a 25 e cidade
+   a 15 caracteres (acentos são removidos automaticamente).
+2. Ao salvar/editar uma corrida, o app pergunta: **“Gerar QR Code PIX?”**.
+3. Se aceitar, ele gera o **BR Code estático** com valor, a sua chave, nome e
+   cidade cadastrados e um `txid` único da corrida — funciona para qualquer
+   tipo de chave.
+4. O passageiro paga pelo app do banco.
+5. O motorista confere o crédito e toca em **“Já recebi o pagamento”**. O app
    grava `payment_status = 'pago'`, `paid_at` e exibe a **mensagem de
    confirmação de pagamento**.
+
+Se a chave não estiver cadastrada, o diálogo mostra um aviso com link direto
+para Configurações: o app nunca gera um QR Code com a chave de outra pessoa.
 
 **Importante:** QR Code estático **não envia callback** para o app. A
 confirmação é manual (e honesta). Para confirmação automática de verdade, é
@@ -399,7 +424,7 @@ com `npm test`.
 
 ```bash
 git add .
-git commit -m "RotaRendaComLucro 2.1: abastecimento rateado e rota no mapa"
+git commit -m "RotaRendaComLucro 2.2: chave PIX por motorista e correcao ao salvar"
 git push origin main
 ```
 
